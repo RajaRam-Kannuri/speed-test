@@ -5,8 +5,7 @@
 Requirements: Docker 24+ with Compose v2, about 6 GB of disk for the images.
 
 ```bash
-cp .env.example .env
-# Generate the keys named in .env.example and set the passwords, then:
+python3 scripts/setup-env.py  # creates .env with generated secret keys and passwords
 docker compose up -d --build
 docker compose ps        # api should be "healthy"
 ```

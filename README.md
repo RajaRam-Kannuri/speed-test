@@ -37,7 +37,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design, [docs/SETU
 ## Quick start (Docker)
 
 ```bash
-cp .env.example .env          # then fill in LLX_SECRET_KEY, LLX_ENCRYPTION_KEY and the passwords (commands are in the file)
+python3 scripts/setup-env.py  # creates .env with generated secret keys and passwords
 docker compose up -d --build
 open http://localhost:3000    # register, create a project, choose "Create Test"
 ```
