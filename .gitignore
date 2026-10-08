@@ -6,3 +6,10 @@ build/
 dist/
 .venv/
 generated/
+.dev/
+backend/.env
+backend/.artifacts/
+node_modules/
+.next/
+e2e/test-results/
+e2e/playwright-report/

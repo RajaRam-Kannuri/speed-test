@@ -1,0 +1,20 @@
+{
+  "name": "lorvenlax-engine",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright execution and discovery engine for LorvenLax AI Testing Platform",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p .",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@playwright/test": "1.56.1",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.7.2"
+  }
+}
