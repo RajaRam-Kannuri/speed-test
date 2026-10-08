@@ -96,7 +96,7 @@ def _pairwise(names: List[str], domains: Dict[str, List[Value]]) -> List[Dict[st
             idx[k] = best
         for (a, xa), (b, xb) in itertools.combinations(sorted(idx.items()), 2):
             uncovered.discard((a, xa, b, xb))
-        rows.append({names[k]: domains[names[k]][v] for k, v in idx.items()})
+        rows.append({names[k]: domains[names[k]][idx[k]] for k in range(len(names))})
     return rows
 
 

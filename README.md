@@ -13,6 +13,16 @@ It works in three steps:
    You can export them as Markdown, CSV or JSON.
 3. **Test script**: a runnable, parametrized pytest file.
 
+## Web version
+
+`web/index.html` is a browser version of the generator, published at
+https://claude.ai/artifact/76RELjip87Fb1ujsRQUuWY. You edit the spec in a form
+(or paste Python code or a spec JSON to import it), see the test cases update
+as you type, and copy the pytest script or spec JSON. It runs entirely in the
+browser and produces the same cases as the CLI. Because a browser can't run
+your Python code, it doesn't record expected results. Instead, you can type an
+expected value for any case.
+
 ## Quick start
 
 ```bash
@@ -109,5 +119,6 @@ testgen/
   introspect.py  drafts a spec from type hints
   cli.py         `testgen spec | cases | script`
 examples/        a sample module and its spec
+web/index.html   browser version (JavaScript port of the generator)
 tests/           tests for testgen itself (run with `pytest`)
 ```

@@ -1,0 +1,1101 @@
+<title>Testgen Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: two-pane workbench. Spec editor on the left, live output on the right; stacks to one column on phones. */
+:root {
+  --bg: #F3F4F7;
+  --surface: #FFFFFF;
+  --sunken: #EBEDF2;
+  --ink: #171A2C;
+  --muted: #5B6178;
+  --line: #D9DCE5;
+  --accent: #3245C4;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E5E8FA;
+  --nominal: #2F6690;
+  --nominal-soft: #E2EDF6;
+  --boundary: #8F5A00;
+  --boundary-soft: #FBEFD8;
+  --invalid: #B3261E;
+  --invalid-soft: #FBE4E2;
+  --code-bg: #F7F8FB;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F111A; --surface: #171A26; --sunken: #1E2231; --ink: #E5E7F0; --muted: #9399AE;
+    --line: #2A2F41; --accent: #8E9BFF; --accent-ink: #0F111A; --accent-soft: #232848;
+    --nominal: #8DB8DA; --nominal-soft: #1B2A38; --boundary: #E4B355; --boundary-soft: #33280F;
+    --invalid: #F28B82; --invalid-soft: #3A1C1B; --code-bg: #12141E;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F111A; --surface: #171A26; --sunken: #1E2231; --ink: #E5E7F0; --muted: #9399AE;
+  --line: #2A2F41; --accent: #8E9BFF; --accent-ink: #0F111A; --accent-soft: #232848;
+  --nominal: #8DB8DA; --nominal-soft: #1B2A38; --boundary: #E4B355; --boundary-soft: #33280F;
+  --invalid: #F28B82; --invalid-soft: #3A1C1B; --code-bg: #12141E;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 14px/1.5 var(--font-body);
+  padding-inline: 16px; padding-block: 0 48px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
+code, pre, .mono { font-family: var(--font-mono); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px;
+  padding-block: 22px 18px; border-bottom: 1px solid var(--line); margin-bottom: 20px;
+}
+header.top h1 { font-size: 26px; letter-spacing: -0.01em; }
+header.top h1 span { color: var(--accent); }
+header.top p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend b { font-weight: 500; }
+
+.grid { display: grid; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.panel > .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.panel > .head h2 { font-size: 17px; }
+.panel > .body { padding: 16px; display: grid; gap: 16px; }
+
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+label.field { display: grid; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+label.field.inline { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13px; }
+input[type="text"], input[type="number"], select, textarea {
+  width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface);
+  color: var(--ink); font-size: 13px;
+}
+input.mono, textarea.mono { font-family: var(--font-mono); font-size: 12.5px; }
+input[aria-invalid="true"] { border-color: var(--invalid); background: var(--invalid-soft); }
+textarea { resize: vertical; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 500; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 4px 8px; }
+.btn.ghost:hover { color: var(--invalid); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.row > * { flex: 1 1 0; }
+.row > .shrink { flex: 0 0 auto; }
+
+/* Function chips */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font-family: var(--font-mono); font-size: 12.5px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--sunken);
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip.add { background: transparent; border-style: dashed; color: var(--muted); font-family: var(--font-body); }
+
+/* Parameter cards */
+.params { display: grid; gap: 10px; }
+.param { border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); padding: 10px; display: grid; gap: 8px; }
+.param .row label.field { flex: 1 1 90px; }
+.param .row label.field.name { flex: 2 1 120px; }
+.param .err { color: var(--invalid); font-size: 12px; }
+.signature { font-family: var(--font-mono); font-size: 12.5px; background: var(--sunken); border-radius: 4px; padding: 8px 10px; overflow-x: auto; white-space: pre; }
+
+details.import summary { cursor: pointer; font-weight: 500; }
+details.import[open] summary { margin-bottom: 10px; }
+.import .status { font-size: 12px; color: var(--muted); }
+.import .status.bad { color: var(--invalid); }
+
+/* Output */
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 5px 12px; cursor: pointer; font-size: 13px; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+.counts { display: flex; flex-wrap: wrap; gap: 6px; font-variant-numeric: tabular-nums; }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.pill.nominal { color: var(--nominal); background: var(--nominal-soft); }
+.pill.boundary { color: var(--boundary); background: var(--boundary-soft); }
+.pill.invalid { color: var(--invalid); background: var(--invalid-soft); }
+.pill.total { color: var(--ink); background: var(--sunken); }
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding-inline: 16px; overflow-x: auto; }
+.tabs button {
+  border: 0; background: none; padding: 10px 12px; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--muted);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+.fn-block { display: grid; gap: 8px; }
+.fn-block + .fn-block { margin-top: 18px; }
+.fn-block h3 { font-family: var(--font-mono); font-weight: 500; font-size: 15px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; background: var(--sunken); white-space: nowrap; }
+td.id { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; color: var(--muted); }
+td.inputs { font-family: var(--font-mono); font-size: 12px; max-width: 360px; word-break: break-word; }
+td.expected { min-width: 180px; }
+td.expected input { font-family: var(--font-mono); font-size: 12px; padding: 4px 6px; }
+tr.cat-invalid td.id { box-shadow: inset 3px 0 0 var(--invalid); }
+tr.cat-boundary td.id { box-shadow: inset 3px 0 0 var(--boundary); }
+tr.cat-nominal td.id { box-shadow: inset 3px 0 0 var(--nominal); }
+
+pre.code {
+  margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px;
+  overflow: auto; max-height: 72vh; font-size: 12.5px; line-height: 1.55; tab-size: 4;
+}
+.code .kw { color: var(--accent); }
+.code .str { color: var(--nominal); }
+.code .com { color: var(--muted); font-style: italic; }
+.note { color: var(--muted); font-size: 12.5px; margin: 0; max-width: 80ch; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 4px; font-size: 13px; }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+@media (prefers-reduced-motion: no-preference) { .btn, .chip, .tabs button { transition: color .12s, border-color .12s, background .12s; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Testgen <span>Workbench</span></h1>
+      <p>Describe a Python function's parameters. Testgen picks typical, boundary and invalid values for each one, combines them into test cases, and writes a pytest script you can copy into your project.</p>
+    </div>
+    <div class="legend" aria-label="Case categories">
+      <span><span class="pill nominal">nominal</span> typical value</span>
+      <span><span class="pill boundary">boundary</span> min, min+1, max−1, max, empty, None</span>
+      <span><span class="pill invalid">invalid</span> out of range, wrong type</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="spec-h">
+      <div class="head"><h2 id="spec-h">Spec</h2><button class="btn" id="reset-btn" type="button">Load example</button></div>
+      <div class="body">
+        <label class="field">Module under test (file path or dotted name)
+          <input type="text" class="mono" id="module" spellcheck="false">
+        </label>
+
+        <div style="display:grid;gap:8px">
+          <span class="eyebrow">Functions</span>
+          <div class="chips" id="fn-chips"></div>
+        </div>
+
+        <div id="fn-editor" style="display:grid;gap:12px"></div>
+
+        <details class="import" id="import-box">
+          <summary>Import from Python code or spec JSON</summary>
+          <div style="display:grid;gap:8px">
+            <textarea id="import-text" class="mono" rows="8" spellcheck="false" placeholder="def clamp(value: int, low: int = 0, high: int = 10) -> int:&#10;    ...&#10;&#10;or paste a testgen spec JSON"></textarea>
+            <div class="row"><button class="btn primary shrink" id="import-btn" type="button">Import</button><span class="status" id="import-status">Functions are added from their type hints. Then add ranges and lengths by hand.</span></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="out-h">
+      <div class="head">
+        <h2 id="out-h">Generated tests</h2>
+        <div class="toolbar">
+          <div class="seg" role="group" aria-label="Combination strategy" id="strategy">
+            <button type="button" data-s="each" title="Vary one parameter at a time">Each value</button>
+            <button type="button" data-s="pairwise" title="Every pair of values appears together at least once">Pairwise</button>
+            <button type="button" data-s="exhaustive" title="Every combination (capped at 500)">Exhaustive</button>
+          </div>
+          <div class="counts" id="counts"></div>
+        </div>
+      </div>
+      <div class="tabs" role="tablist">
+        <button role="tab" type="button" id="tab-cases" aria-controls="view-cases">Test cases</button>
+        <button role="tab" type="button" id="tab-script" aria-controls="view-script">pytest script</button>
+        <button role="tab" type="button" id="tab-spec" aria-controls="view-spec">Spec JSON</button>
+      </div>
+
+      <div class="body" id="view-cases" role="tabpanel" aria-labelledby="tab-cases">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <p class="note shrink" style="flex:1 1 300px">Type an expected result to turn a case into an exact check, for example <code>2.5</code>, <code>'Hi Ana!'</code> or <code>raises KeyError</code>. Empty valid cases only check that the call doesn't raise.</p>
+          <div class="row shrink" style="flex:0 0 auto">
+            <button class="btn shrink" type="button" data-copy="markdown">Copy Markdown</button>
+            <button class="btn shrink" type="button" data-copy="csv">Copy CSV</button>
+            <button class="btn shrink" type="button" data-copy="json">Copy JSON</button>
+          </div>
+        </div>
+        <div id="cases-out"></div>
+      </div>
+
+      <div class="body" id="view-script" role="tabpanel" aria-labelledby="tab-script" hidden>
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <p class="note shrink" style="flex:1 1 300px">Save as <code>tests/test_<span id="script-name">module</span>.py</code> and run <code>pytest</code> from your project root. File paths in the spec are resolved from that directory.</p>
+          <button class="btn primary shrink" type="button" data-copy="script">Copy script</button>
+        </div>
+        <pre class="code" id="script-out" tabindex="0"></pre>
+      </div>
+
+      <div class="body" id="view-spec" role="tabpanel" aria-labelledby="tab-spec" hidden>
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <p class="note shrink" style="flex:1 1 300px">Same format as the command-line tool. Save it as <code>my.spec.json</code> and run <code>testgen script my.spec.json</code>; the CLI also runs your function to record expected results.</p>
+          <button class="btn primary shrink" type="button" data-copy="spec">Copy spec</button>
+        </div>
+        <pre class="code" id="spec-out" tabindex="0"></pre>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+/* ======================================================================
+ * Python value model. JS numbers are Python ints; PyFloat wraps floats so
+ * 1.0 and 1 stay distinct, as they do in the generated Python source.
+ * ==================================================================== */
+class PyFloat { constructor(v) { this.v = v; } }
+const F = (v) => new PyFloat(v);
+
+function pyType(v) {
+  if (v === null || v === undefined) return "NoneType";
+  if (typeof v === "boolean") return "bool";
+  if (typeof v === "number") return "int";
+  if (v instanceof PyFloat) return "float";
+  if (typeof v === "string") return "str";
+  if (Array.isArray(v)) return "list";
+  return "dict";
+}
+function fmtFloat(x, source) {
+  if (Number.isNaN(x)) return source ? 'float("nan")' : "nan";
+  if (!Number.isFinite(x)) return source ? (x > 0 ? 'float("inf")' : 'float("-inf")') : (x > 0 ? "inf" : "-inf");
+  if (Object.is(x, -0)) return "-0.0";
+  if (Number.isInteger(x) && Math.abs(x) < 1e16) return x.toFixed(1);
+  return String(x).replace(/e([+-])(\d)$/, "e$10$2");
+}
+function pyStr(s) {
+  const q = s.includes("'") && !s.includes('"') ? '"' : "'";
+  let out = "";
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    if (ch === "\\") out += "\\\\";
+    else if (ch === q) out += "\\" + q;
+    else if (ch === "\n") out += "\\n";
+    else if (ch === "\r") out += "\\r";
+    else if (ch === "\t") out += "\\t";
+    else if (c < 32 || c === 127) out += "\\x" + c.toString(16).padStart(2, "0");
+    else out += ch;
+  }
+  return q + out + q;
+}
+function pyRepr(v, source = false) {
+  switch (pyType(v)) {
+    case "NoneType": return "None";
+    case "bool": return v ? "True" : "False";
+    case "int": return String(v);
+    case "float": return fmtFloat(v.v, source);
+    case "str": return pyStr(v);
+    case "list": return "[" + v.map((x) => pyRepr(x, source)).join(", ") + "]";
+    default: return "{" + Object.entries(v).map(([k, x]) => pyStr(k) + ": " + pyRepr(x, source)).join(", ") + "}";
+  }
+}
+const toSource = (v) => pyRepr(v, true);
+const pyKey = (v) => pyType(v) + ":" + pyRepr(v);
+function toJson(v) {
+  if (v instanceof PyFloat) return Number.isFinite(v.v) ? v.v : String(v.v);
+  if (Array.isArray(v)) return v.map(toJson);
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, toJson(x)]));
+  return v;
+}
+
+/* ======================================================================
+ * Values per parameter (equivalence partitions + boundary values).
+ * Port of testgen/values.py.
+ * ==================================================================== */
+const NOMINAL = "nominal", BOUNDARY = "boundary", INVALID = "invalid";
+const V = (value, category, label) => ({ value, category, label, valid: category !== INVALID });
+const r10 = (x) => Number(x.toFixed(10));
+const isExcluded = (p, value) => p.exclude.some((ex) => pyKey(ex) === pyKey(value));
+
+function numericValues(p) {
+  const isInt = p.type === "int";
+  const step = isInt ? 1 : 0.01;
+  const cast = (x) => (isInt ? Math.trunc(x) : F(x));
+  const lo = p.min, hi = p.max;
+  const out = [];
+  if (lo != null && hi != null) {
+    let mid = isInt ? Math.floor((Math.trunc(lo) + Math.trunc(hi)) / 2) : (lo + hi) / 2;
+    for (let off = 0; off < 1000; off++) {
+      const cand = r10(mid + off * step);
+      if (cand <= hi && !isExcluded(p, cast(cand))) { mid = cand; break; }
+    }
+    out.push(V(cast(mid), NOMINAL, "mid-range"));
+  } else if (lo != null) {
+    out.push(V(cast(lo + 10), NOMINAL, "above min"));
+  } else if (hi != null) {
+    out.push(V(cast(hi - 10), NOMINAL, "below max"));
+  } else {
+    out.push(V(cast(42), NOMINAL, "typical"));
+    const samples = isInt ? [0, 1, -1, 2 ** 31 - 1, -(2 ** 31)] : [0, 1.5, -1.5, 1e-9, 1e12];
+    for (const s of samples) { const v = cast(s); out.push(V(v, BOUNDARY, "edge " + pyRepr(v))); }
+  }
+  if (lo != null) {
+    out.push(V(cast(lo), BOUNDARY, "min"));
+    if (hi == null || lo + step <= hi) out.push(V(cast(r10(lo + step)), BOUNDARY, "min + 1 step"));
+    out.push(V(cast(r10(lo - step)), INVALID, "below min"));
+  }
+  if (hi != null) {
+    out.push(V(cast(hi), BOUNDARY, "max"));
+    if (lo == null || hi - step >= lo) out.push(V(cast(r10(hi - step)), BOUNDARY, "max - 1 step"));
+    out.push(V(cast(r10(hi + step)), INVALID, "above max"));
+  }
+  if ((lo == null || lo <= 0) && (hi == null || hi >= 0)) out.push(V(cast(0), BOUNDARY, "zero"));
+  out.push(V(isInt ? "1" : "1.5", INVALID, "wrong type (str)"));
+  return out;
+}
+
+function stringValues(p) {
+  const lo = p.min_length, hi = p.max_length;
+  let n;
+  if (lo != null && hi != null) n = Math.floor((lo + hi) / 2);
+  else if (lo != null) n = lo + 5;
+  else if (hi != null) n = hi ? Math.max(Math.floor(hi / 2), 1) : 0;
+  else n = 5;
+  const out = [V("a".repeat(n), NOMINAL, "length " + n)];
+  if (lo == null && hi == null) {
+    out.push(V("", BOUNDARY, "empty"), V(" ", BOUNDARY, "whitespace"),
+      V("héllo wörld ✓", BOUNDARY, "unicode"), V("x".repeat(1000), BOUNDARY, "long (1000)"));
+  }
+  if (lo != null) {
+    out.push(V("a".repeat(lo), BOUNDARY, "min length " + lo));
+    if (lo > 0) out.push(V("a".repeat(lo - 1), INVALID, "below min length " + (lo - 1)));
+  }
+  if (hi != null) {
+    out.push(V("a".repeat(hi), BOUNDARY, "max length " + hi));
+    out.push(V("a".repeat(hi + 1), INVALID, "above max length " + (hi + 1)));
+  }
+  out.push(V(123, INVALID, "wrong type (int)"));
+  return out;
+}
+
+function listValues(p) {
+  const item = p.items || normParam({ name: "item", type: "int", min: 0, max: 9 });
+  const itemAll = valuesFor(item);
+  const itemValues = itemAll.filter((v) => v.valid && v.value !== null).map((v) => v.value);
+  const sample = itemValues.length ? itemValues[0] : 0;
+  const lo = p.min_length, hi = p.max_length;
+  const n = lo != null && hi != null ? Math.floor((lo + hi) / 2) : (lo || 0) + 3;
+  const rep = (k, v = sample) => Array.from({ length: k }, () => v);
+  const out = [V(rep(n), NOMINAL, n + " items")];
+  if (lo == null) out.push(V([], BOUNDARY, "empty list"));
+  else {
+    out.push(V(rep(lo), BOUNDARY, "min length " + lo));
+    if (lo > 0) out.push(V(rep(lo - 1), INVALID, "below min length " + (lo - 1)));
+  }
+  if (hi != null) {
+    out.push(V(rep(hi), BOUNDARY, "max length " + hi));
+    out.push(V(rep(hi + 1), INVALID, "above max length " + (hi + 1)));
+  }
+  if (itemValues.length > 1) out.push(V(itemValues.slice(0, Math.max(n, 2)), BOUNDARY, "mixed items"));
+  const invalidItems = itemAll.filter((v) => !v.valid);
+  if (invalidItems.length && p.items) out.push(V(rep(Math.max(lo || 1, 1), invalidItems[0].value), INVALID, "invalid item"));
+  out.push(V("not a list", INVALID, "wrong type (str)"));
+  return out;
+}
+
+function valuesFor(p) {
+  let out;
+  if (p.choices && p.choices.length) {
+    out = [V(p.choices[0], NOMINAL, "choice " + pyRepr(p.choices[0]))];
+    for (const c of p.choices.slice(1)) out.push(V(c, BOUNDARY, "choice " + pyRepr(c)));
+    const nums = p.choices.filter((c) => pyType(c) === "int" || pyType(c) === "float");
+    let bogus = "__not_a_choice__";
+    if (nums.length === p.choices.length) {
+      const top = Math.max(...nums.map((c) => (c instanceof PyFloat ? c.v : c)));
+      bogus = nums.some((c) => c instanceof PyFloat) ? F(top + 1) : top + 1;
+    }
+    out.push(V(bogus, INVALID, "not in choices"));
+  } else if (p.type === "int" || p.type === "float") out = numericValues(p);
+  else if (p.type === "str") out = stringValues(p);
+  else if (p.type === "bool") out = [V(true, NOMINAL, "true"), V(false, BOUNDARY, "false")];
+  else if (p.type === "list") out = listValues(p);
+  else {
+    out = [p.has_default ? V(p.default, NOMINAL, "default") : V(1, NOMINAL, "int")];
+    out.push(V("text", BOUNDARY, "str"), V(0, BOUNDARY, "zero"), V([], BOUNDARY, "empty list"));
+  }
+  if (p.nullable) out.push(V(null, BOUNDARY, "None"));
+  else if (p.type !== "any") out.push(V(null, INVALID, "None"));
+
+  const fixed = out.filter((v) => !(v.valid && isExcluded(p, v.value)));
+  if (fixed.length && !fixed.some((v) => v.category === NOMINAL)) {
+    const i = fixed.findIndex((v) => v.valid);
+    if (i >= 0) fixed[i] = V(fixed[i].value, NOMINAL, fixed[i].label);
+  }
+  for (const ex of p.exclude) fixed.push(V(ex, INVALID, "excluded " + pyRepr(ex)));
+  const seen = new Set();
+  return fixed.filter((v) => { const k = pyKey(v.value); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/* ======================================================================
+ * Case generation. Port of testgen/cases.py.
+ * ==================================================================== */
+const EXHAUSTIVE_CAP = 500;
+
+function pairwise(names, domains) {
+  if (names.length < 2) {
+    const rows = [];
+    for (const n of names) for (const v of domains[n]) rows.push({ [n]: v });
+    return rows.length ? rows : [{}];
+  }
+  const key = (i, x, j, y) => i + "," + x + "," + j + "," + y;
+  const uncovered = new Map();
+  for (let i = 0; i < names.length; i++)
+    for (let j = i + 1; j < names.length; j++)
+      for (let x = 0; x < domains[names[i]].length; x++)
+        for (let y = 0; y < domains[names[j]].length; y++) uncovered.set(key(i, x, j, y), [i, x, j, y]);
+  const lexMin = () => {
+    let best = null;
+    for (const t of uncovered.values()) {
+      if (!best) { best = t; continue; }
+      for (let k = 0; k < 4; k++) { if (t[k] !== best[k]) { if (t[k] < best[k]) best = t; break; } }
+    }
+    return best;
+  };
+  const rows = [];
+  while (uncovered.size) {
+    const [i, x, j, y] = lexMin();
+    const idx = new Map([[i, x], [j, y]]);
+    for (let k = 0; k < names.length; k++) {
+      if (idx.has(k)) continue;
+      let best = 0, bestGain = -1;
+      for (let cand = 0; cand < domains[names[k]].length; cand++) {
+        let gain = 0;
+        for (const [m, mv] of idx) {
+          if (uncovered.has(k < m ? key(k, cand, m, mv) : key(m, mv, k, cand))) gain++;
+        }
+        if (gain > bestGain) { best = cand; bestGain = gain; }
+      }
+      idx.set(k, best);
+    }
+    const sorted = [...idx.entries()].sort((a, b) => a[0] - b[0]);
+    for (let a = 0; a < sorted.length; a++)
+      for (let b = a + 1; b < sorted.length; b++) uncovered.delete(key(sorted[a][0], sorted[a][1], sorted[b][0], sorted[b][1]));
+    const row = {};
+    for (const [k, v] of idx) row[names[k]] = domains[names[k]][v];
+    rows.push(row);
+  }
+  return rows;
+}
+
+function generateCases(fn, strategy) {
+  const names = fn.parameters.map((p) => p.name);
+  const all = {}, valid = {}, invalid = {}, baseline = {};
+  for (const p of fn.parameters) {
+    all[p.name] = valuesFor(p);
+    valid[p.name] = all[p.name].filter((v) => v.valid);
+    invalid[p.name] = all[p.name].filter((v) => !v.valid);
+    baseline[p.name] = valid[p.name].find((v) => v.category === NOMINAL);
+    if (!baseline[p.name]) throw new Error(`Parameter "${p.name}" has no valid values. Check its constraints.`);
+  }
+  let combos = [];
+  if (strategy === "each") {
+    combos.push({ ...baseline });
+    for (const n of names) for (const v of valid[n]) if (v !== baseline[n]) combos.push({ ...baseline, [n]: v });
+  } else if (strategy === "pairwise") {
+    combos = pairwise(names, valid);
+  } else {
+    let rows = [{}];
+    for (const n of names) {
+      const next = [];
+      for (const r of rows) for (const v of valid[n]) { next.push({ ...r, [n]: v }); }
+      rows = next;
+    }
+    combos = rows.slice(0, EXHAUSTIVE_CAP);
+  }
+  for (const n of names) for (const v of invalid[n]) combos.push({ ...baseline, [n]: v });
+
+  const cases = [], seen = new Set();
+  for (const chosen of combos) {
+    const k = names.map((n) => pyKey(chosen[n].value)).join("|");
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const cats = new Set(names.map((n) => chosen[n].category));
+    const category = cats.has(INVALID) ? INVALID : cats.has(BOUNDARY) ? BOUNDARY : NOMINAL;
+    const changed = names.filter((n) => chosen[n] !== baseline[n]).map((n) => `${n}=${chosen[n].label}`);
+    const inputs = {};
+    for (const n of names) inputs[n] = chosen[n].value;
+    cases.push({
+      id: `${fn.name}_${String(cases.length + 1).padStart(3, "0")}`,
+      function: fn.name, inputs, category,
+      description: changed.length ? changed.join(", ") : "all parameters nominal",
+    });
+  }
+  return cases;
+}
+
+/* ======================================================================
+ * Expectations. The browser can't run Python, so expectations come from
+ * the spec (invalid -> raises) or from what the user types per case.
+ * ==================================================================== */
+function expectationFor(fn, c) {
+  const typed = (state.expected[caseKey(c)] || "").trim();
+  if (typed) {
+    const m = typed.match(/^raises\s+([A-Za-z_][\w.]*)$/);
+    if (m) return { expect: "raises", expected: pyStr(m[1].split(".").pop()), text: "raises " + m[1], user: true };
+    return { expect: "return", expected: typed, text: "returns " + typed, user: true };
+  }
+  if (c.category === INVALID) {
+    return fn.raises_on_invalid
+      ? { expect: "raises", expected: pyStr(fn.raises_on_invalid), text: "raises " + fn.raises_on_invalid }
+      : { expect: "raises_any", expected: "None", text: "raises an exception" };
+  }
+  return { expect: "smoke", expected: "None", text: "doesn't raise" };
+}
+const caseKey = (c) => c.function + "|" + pyRepr(c.inputs);
+
+/* ======================================================================
+ * Rendering: pytest script, spec JSON, case exports.
+ * ==================================================================== */
+const HELPERS = `
+
+def _check(func, inputs, expect, expected):
+    """Run \`\`func(**inputs)\`\` and compare against the expectation."""
+    if expect == "raises":
+        with pytest.raises(Exception) as info:
+            func(**inputs)
+        assert type(info.value).__name__ == expected, (
+            f"expected {expected}, got {type(info.value).__name__}: {info.value}"
+        )
+    elif expect == "raises_any":
+        with pytest.raises(Exception):
+            func(**inputs)
+    elif expect == "return":
+        actual = func(**inputs)
+        if isinstance(expected, float):
+            assert actual == pytest.approx(expected, nan_ok=True)
+        else:
+            assert actual == expected
+            assert type(actual) is type(expected)
+    else:  # smoke test: must simply not raise
+        func(**inputs)
+`;
+
+function moduleIsPath(m) { return m.endsWith(".py") || m.includes("/") || m.includes("\\"); }
+
+function renderScript(spec, results) {
+  const parts = [
+    `"""Generated by Testgen Workbench for ${spec.module}.\n\nRun pytest from your project root.\n"""\n\nimport pytest\n`,
+  ];
+  if (moduleIsPath(spec.module)) {
+    parts.push(
+      "import importlib.util\nimport sys\nfrom pathlib import Path\n\n" +
+      `_TARGET = (Path.cwd() / ${pyStr(spec.module.replace(/\\/g, "/"))}).resolve()\n` +
+      "sys.path.insert(0, str(_TARGET.parent))\n" +
+      "_spec = importlib.util.spec_from_file_location(_TARGET.stem, _TARGET)\n" +
+      "target = importlib.util.module_from_spec(_spec)\n" +
+      "_spec.loader.exec_module(target)\n");
+  } else {
+    parts.push(`import importlib\n\ntarget = importlib.import_module(${pyStr(spec.module)})\n`);
+  }
+  parts.push(HELPERS);
+  for (const { fn, cases } of results) {
+    const ident = fn.name.replace(/\W/g, "_");
+    const lines = [`\n\nCASES_${ident.toUpperCase()} = [`];
+    for (const c of cases) {
+      const e = expectationFor(fn, c);
+      lines.push(`    pytest.param(${toSource(c.inputs)}, ${pyStr(e.expect)}, ${e.expected}, id=${pyStr(c.id + "-" + c.category)}),  # ${c.description}`);
+    }
+    lines.push("]\n");
+    lines.push(`\n@pytest.mark.parametrize("inputs, expect, expected", CASES_${ident.toUpperCase()})\ndef test_${ident}(inputs, expect, expected):\n    _check(target.${fn.name}, inputs, expect, expected)\n`);
+    parts.push(lines.join("\n"));
+  }
+  return parts.join("");
+}
+
+function specToDict(spec) {
+  return {
+    module: spec.module,
+    functions: spec.functions.map((fn) => {
+      const o = { name: fn.name };
+      if (fn.description) o.description = fn.description;
+      if (fn.raises_on_invalid) o.raises_on_invalid = fn.raises_on_invalid;
+      o.parameters = fn.parameters.map(paramToDict);
+      return o;
+    }),
+  };
+}
+function paramToDict(p) {
+  const o = { name: p.name, type: p.type };
+  for (const k of ["min", "max", "min_length", "max_length"]) if (p[k] != null) o[k] = p[k];
+  if (p.choices && p.choices.length) o.choices = toJson(p.choices);
+  if (p.exclude.length) o.exclude = toJson(p.exclude);
+  if (p.nullable) o.nullable = true;
+  if (p.items) { const it = paramToDict(p.items); delete it.name; o.items = it; }
+  if (p.has_default) o.default = toJson(p.default);
+  return o;
+}
+
+function exportCases(results, fmt) {
+  const rows = [];
+  for (const { fn, cases } of results) for (const c of cases) rows.push({ fn, c, e: expectationFor(fn, c) });
+  if (fmt === "json") {
+    return JSON.stringify(rows.map(({ c, e }) => ({
+      id: c.id, function: c.function, category: c.category, description: c.description,
+      inputs: toJson(c.inputs), expected: e.text,
+    })), null, 2);
+  }
+  if (fmt === "csv") {
+    const esc = (s) => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    return ["id,function,category,description,inputs,expected"]
+      .concat(rows.map(({ c, e }) => [c.id, c.function, c.category, c.description, JSON.stringify(toJson(c.inputs)), e.text].map(esc).join(",")))
+      .join("\n") + "\n";
+  }
+  const out = ["# Test cases", ""];
+  for (const { fn, cases } of results) {
+    out.push(`## \`${fn.name}\` (${cases.length} cases)`, "", "| ID | Category | Description | Inputs | Expected |", "|----|----------|-------------|--------|----------|");
+    for (const c of cases) {
+      const inputs = Object.entries(c.inputs).map(([k, v]) => `${k}=${short(v, 25)}`).join(", ");
+      out.push("| " + [c.id, c.category, c.description, inputs ? "`" + inputs + "`" : "-", expectationFor(fn, c).text]
+        .map((s) => s.replace(/\|/g, "\\|")).join(" | ") + " |");
+    }
+    out.push("");
+  }
+  return out.join("\n");
+}
+function short(v, limit = 40) { const t = pyRepr(v); return t.length <= limit ? t : t.slice(0, limit - 3) + "..."; }
+
+/* ======================================================================
+ * Importing: Python source (def signatures + type hints) or spec JSON.
+ * ==================================================================== */
+function splitTop(s, sep = ",") {
+  const out = []; let depth = 0, cur = "", quote = null;
+  for (const ch of s) {
+    if (quote) { cur += ch; if (ch === quote) quote = null; continue; }
+    if (ch === "'" || ch === '"') { quote = ch; cur += ch; continue; }
+    if ("([{".includes(ch)) depth++;
+    if (")]}".includes(ch)) depth--;
+    if (ch === sep && depth === 0) { out.push(cur); cur = ""; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+function parsePyLiteral(src) {
+  src = src.trim();
+  if (src === "None") return { ok: true, v: null };
+  if (src === "True" || src === "False") return { ok: true, v: src === "True" };
+  if (/^-?\d+$/.test(src)) return { ok: true, v: parseInt(src, 10) };
+  if (/^-?(\d+\.\d*|\.\d+|\d+(\.\d*)?[eE][+-]?\d+)$/.test(src)) return { ok: true, v: F(parseFloat(src)) };
+  const m = src.match(/^(['"])(.*)\1$/s);
+  if (m) return { ok: true, v: m[2] };
+  if (src === "[]") return { ok: true, v: [] };
+  return { ok: false };
+}
+function annotationToParam(name, ann) {
+  const p = { name, type: "any", nullable: false };
+  ann = (ann || "").replace(/\s+/g, "").replace(/^typing\./, "");
+  let m;
+  if ((m = ann.match(/^Optional\[(.*)\]$/))) { p.nullable = true; ann = m[1]; }
+  const parts = splitTop(ann, "|");
+  if (parts.length > 1 && parts.includes("None")) { p.nullable = true; ann = parts.filter((x) => x !== "None").join("|"); }
+  if ((m = ann.match(/^Literal\[(.*)\]$/))) {
+    const vals = splitTop(m[1]).map(parsePyLiteral).filter((r) => r.ok).map((r) => r.v);
+    p.choicesText = vals.map((v) => pyRepr(v)).join(", ");
+    const types = new Set(vals.map(pyType));
+    p.type = types.size === 1 && ["int", "float", "str"].includes([...types][0]) ? [...types][0] : "any";
+  } else if ((m = ann.match(/^(?:List|list)(?:\[(.*)\])?$/))) {
+    p.type = "list";
+    const inner = m[1] && annotationToParam("item", m[1]);
+    p.itemsType = inner && ["int", "float", "str", "bool"].includes(inner.type) ? inner.type : "int";
+  } else if (["int", "float", "str", "bool"].includes(ann)) p.type = ann;
+  return p;
+}
+function parsePythonSource(src) {
+  const fns = [];
+  const re = /^def\s+([A-Za-z_]\w*)\s*\(([\s\S]*?)\)\s*(?:->\s*[^:]+)?:/gm;
+  let m;
+  while ((m = re.exec(src))) {
+    if (m[1].startsWith("_")) continue;
+    const params = [];
+    for (const raw of splitTop(m[2].replace(/#[^\n]*/g, ""))) {
+      if (raw === "*" || raw === "/" || raw.startsWith("*")) continue;
+      const [lhs, ...rest] = splitTop(raw, "=");
+      const def = rest.length ? rest.join("=") : null;
+      const [pname, ann] = lhs.split(/:(.*)/s).map((s) => s && s.trim());
+      if (pname === "self" || pname === "cls") continue;
+      const p = annotationToParam(pname, ann);
+      if (def != null) { const lit = parsePyLiteral(def); if (lit.ok) { p.has_default = true; p.default = lit.v; } }
+      params.push(blankParam(p));
+    }
+    const after = src.slice(re.lastIndex);
+    const doc = after.match(/^\s*(?:"""|''')\s*([^\n]*?)\s*(?:"""|'''|\n)/);
+    fns.push({ name: m[1], raises_on_invalid: "", description: doc ? doc[1] : "", parameters: params });
+  }
+  return fns;
+}
+function specFromJson(data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.functions)) throw new Error("Spec JSON needs a \"functions\" list.");
+  const pText = (list) => (list || []).map((v) => typeof v === "string" ? pyStr(v) : v === null ? "None" : typeof v === "boolean" ? (v ? "True" : "False") : String(v)).join(", ");
+  return {
+    module: data.module || "",
+    functions: data.functions.map((f) => ({
+      name: f.name || "fn", raises_on_invalid: f.raises_on_invalid || "", description: f.description || "",
+      parameters: (f.parameters || []).map((p) => blankParam({
+        name: p.name, type: p.type || "any", nullable: !!p.nullable,
+        min: p.min ?? "", max: p.max ?? "", min_length: p.min_length ?? "", max_length: p.max_length ?? "",
+        choicesText: pText(p.choices), excludeText: pText(p.exclude),
+        itemsType: p.items ? p.items.type || "int" : "int", itemsMin: p.items?.min ?? "", itemsMax: p.items?.max ?? "",
+        itemsUsed: !!p.items,
+        has_default: "default" in p, default: p.default,
+      })),
+    })),
+  };
+}
+
+/* ======================================================================
+ * Editor state <-> normalized param specs.
+ * ==================================================================== */
+function blankParam(over = {}) {
+  return Object.assign({
+    name: "x", type: "int", min: "", max: "", min_length: "", max_length: "",
+    choicesText: "", excludeText: "", nullable: false, itemsType: "int", itemsMin: "", itemsMax: "", itemsUsed: true,
+    has_default: false, default: null,
+  }, over);
+}
+function coerce(v, type) {
+  if (type === "float" && typeof v === "number") return F(v);
+  if (type === "float" && v instanceof PyFloat) return v;
+  if (type === "int" && v instanceof PyFloat && Number.isInteger(v.v)) return v.v;
+  if (type === "str" && typeof v !== "string" && v !== null) return pyRepr(v);
+  return v;
+}
+function parseValueList(text, type) {
+  if (!String(text).trim()) return [];
+  return splitTop(String(text)).map((s) => {
+    const lit = parsePyLiteral(s);
+    return coerce(lit.ok ? lit.v : s, type);
+  });
+}
+function num(text, field, errors, integer) {
+  const s = String(text ?? "").trim();
+  if (s === "") return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) { errors.push(`${field} must be a number`); return null; }
+  if (integer && !Number.isInteger(n)) { errors.push(`${field} must be a whole number`); return null; }
+  return n;
+}
+function normParam(raw) {
+  const errors = [];
+  const isNum = raw.type === "int" || raw.type === "float";
+  const p = {
+    name: raw.name, type: raw.type, nullable: !!raw.nullable,
+    min: isNum ? num(raw.min, "min", errors, raw.type === "int") : null,
+    max: isNum ? num(raw.max, "max", errors, raw.type === "int") : null,
+    min_length: ["str", "list"].includes(raw.type) ? num(raw.min_length, "min length", errors, true) : null,
+    max_length: ["str", "list"].includes(raw.type) ? num(raw.max_length, "max length", errors, true) : null,
+    choices: parseValueList(raw.choicesText || "", raw.type),
+    exclude: parseValueList(raw.excludeText || "", raw.type),
+    items: null, has_default: !!raw.has_default, default: raw.default,
+  };
+  if (raw.choices) p.choices = raw.choices;
+  if (raw.exclude) p.exclude = raw.exclude;
+  if (p.min != null && p.max != null && p.min > p.max) errors.push("min is greater than max");
+  if (p.min_length != null && p.max_length != null && p.min_length > p.max_length) errors.push("min length is greater than max length");
+  if ((p.min_length ?? 0) < 0 || (p.max_length ?? 0) < 0) errors.push("lengths can't be negative");
+  if (raw.type === "list" && raw.itemsUsed !== false) {
+    const itemErr = [];
+    const t = raw.itemsType || "int";
+    p.items = {
+      name: "item", type: t, nullable: false, choices: [], exclude: [], has_default: false, items: null,
+      min: ["int", "float"].includes(t) ? num(raw.itemsMin, "item min", itemErr, t === "int") : null,
+      max: ["int", "float"].includes(t) ? num(raw.itemsMax, "item max", itemErr, t === "int") : null,
+      min_length: null, max_length: null,
+    };
+    if (p.items.min != null && p.items.max != null && p.items.min > p.items.max) itemErr.push("item min is greater than item max");
+    errors.push(...itemErr);
+  }
+  p.errors = errors;
+  return p;
+}
+
+/* ======================================================================
+ * Example + persistence
+ * ==================================================================== */
+const EXAMPLE = {
+  module: "examples/calculator.py",
+  functions: [
+    { name: "divide", description: "Divide a by b", raises_on_invalid: "ValueError", parameters: [
+      { name: "a", type: "int", min: -100, max: 100 },
+      { name: "b", type: "int", min: -100, max: 100, exclude: [0] } ] },
+    { name: "greet", description: "Build a greeting", raises_on_invalid: "ValueError", parameters: [
+      { name: "name", type: "str", min_length: 1, max_length: 20 },
+      { name: "style", type: "str", choices: ["formal", "casual"] },
+      { name: "title", type: "str", nullable: true } ] },
+    { name: "average", description: "Mean of 1-10 numbers", raises_on_invalid: "ValueError", parameters: [
+      { name: "values", type: "list", min_length: 1, max_length: 10, items: { type: "float", min: -1000, max: 1000 } } ] },
+  ],
+};
+const STORE_KEY = "testgen-workbench-v1";
+let state;
+function freshState() {
+  return { ...specFromJson(EXAMPLE), current: 0, strategy: "each", tab: "cases", expected: {} };
+}
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(STORE_KEY)); if (s && Array.isArray(s.functions) && s.functions.length) return s; } catch (e) { /* storage unavailable */ }
+  return freshState();
+}
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ } }
+
+/* ======================================================================
+ * UI
+ * ==================================================================== */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const TYPES = ["int", "float", "str", "bool", "list", "any"];
+
+function renderChips() {
+  $("#fn-chips").innerHTML = state.functions.map((f, i) =>
+    `<button type="button" class="chip" data-fn="${i}" aria-pressed="${i === state.current}">${esc(f.name || "(unnamed)")}</button>`).join("") +
+    `<button type="button" class="chip add" id="add-fn">+ Add function</button>`;
+}
+
+function paramCard(p, i) {
+  const n = normParam(p);
+  const isNum = p.type === "int" || p.type === "float";
+  const hasLen = p.type === "str" || p.type === "list";
+  const f = (label, key, extra = "") => `<label class="field">${label}<input type="text" class="mono" data-k="${key}" value="${esc(p[key] ?? "")}" ${extra}></label>`;
+  return `<div class="param" data-p="${i}">
+    <div class="row">
+      <label class="field name">Name<input type="text" class="mono" data-k="name" value="${esc(p.name)}" spellcheck="false"></label>
+      <label class="field">Type<select data-k="type">${TYPES.map((t) => `<option ${t === p.type ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <button type="button" class="btn ghost shrink" data-remove="${i}" aria-label="Remove parameter ${esc(p.name)}">Remove</button>
+    </div>
+    ${isNum ? `<div class="row">${f("Min", "min", 'inputmode="decimal" placeholder="none"')}${f("Max", "max", 'inputmode="decimal" placeholder="none"')}</div>` : ""}
+    ${hasLen ? `<div class="row">${f("Min length", "min_length", 'inputmode="numeric" placeholder="none"')}${f("Max length", "max_length", 'inputmode="numeric" placeholder="none"')}</div>` : ""}
+    ${p.type === "list" ? `<div class="row">
+        <label class="field">Item type<select data-k="itemsType">${["int", "float", "str", "bool"].map((t) => `<option ${t === p.itemsType ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        ${["int", "float"].includes(p.itemsType) ? f("Item min", "itemsMin", 'placeholder="none"') + f("Item max", "itemsMax", 'placeholder="none"') : ""}
+      </div>` : ""}
+    ${!["bool", "list"].includes(p.type) ? `<div class="row">${f("Allowed values", "choicesText", 'placeholder="e.g. \'a\', \'b\'"')}${f("Excluded values", "excludeText", 'placeholder="e.g. 0"')}</div>` : ""}
+    <label class="field inline"><input type="checkbox" data-k="nullable" ${p.nullable ? "checked" : ""}> None is a valid value</label>
+    ${n.errors.length ? `<div class="err" role="alert">${esc(n.errors.join("; "))}</div>` : ""}
+  </div>`;
+}
+
+function signatureText(fn) {
+  const ann = (p) => {
+    let t = p.type === "list" ? `list[${p.itemsType}]` : p.type === "any" ? "" : p.type;
+    if (p.nullable && t) t = `${t} | None`;
+    return t ? `: ${t}` : "";
+  };
+  return `def ${fn.name}(${fn.parameters.map((p) => p.name + ann(p)).join(", ")})`;
+}
+
+function renderEditor() {
+  const fn = state.functions[state.current];
+  $("#fn-editor").innerHTML = `
+    <div class="row">
+      <label class="field">Function name<input type="text" class="mono" id="fn-name" value="${esc(fn.name)}" spellcheck="false"></label>
+      <label class="field">Invalid input raises<input type="text" class="mono" id="fn-raises" value="${esc(fn.raises_on_invalid)}" placeholder="any exception" spellcheck="false"></label>
+    </div>
+    <div class="signature" id="sig">${esc(signatureText(fn))}</div>
+    <div style="display:grid;gap:8px">
+      <span class="eyebrow">Parameters</span>
+      <div class="params">${fn.parameters.map(paramCard).join("") || '<p class="note">No parameters. Testgen will generate a single call with no arguments.</p>'}</div>
+    </div>
+    <div class="row">
+      <button type="button" class="btn shrink" id="add-param">+ Add parameter</button>
+      <span></span>
+      <button type="button" class="btn ghost shrink" id="remove-fn" ${state.functions.length < 2 ? "disabled" : ""}>Delete function</button>
+    </div>`;
+}
+
+let lastResults = [], lastScript = "", lastSpecJson = "";
+function generateAll() {
+  const results = [], problems = [];
+  const spec = {
+    module: state.module || "my_module.py",
+    functions: state.functions.map((f) => ({
+      name: f.name || "fn", description: f.description, raises_on_invalid: f.raises_on_invalid.trim(),
+      parameters: f.parameters.map(normParam),
+    })),
+  };
+  for (const fn of spec.functions) {
+    const errs = fn.parameters.flatMap((p) => p.errors.map((e) => `${p.name}: ${e}`));
+    if (new Set(fn.parameters.map((p) => p.name)).size !== fn.parameters.length) errs.push("two parameters share a name");
+    if (errs.length) { problems.push({ fn, errs }); continue; }
+    try { results.push({ fn, cases: generateCases(fn, state.strategy) }); }
+    catch (e) { problems.push({ fn, errs: [e.message] }); }
+  }
+  return { spec, results, problems };
+}
+
+function renderOutput() {
+  const { spec, results, problems } = generateAll();
+  lastResults = results;
+  const counts = { nominal: 0, boundary: 0, invalid: 0 };
+  let total = 0;
+  for (const r of results) for (const c of r.cases) { counts[c.category]++; total++; }
+  $("#counts").innerHTML = `<span class="pill total">${total} cases</span>` +
+    ["nominal", "boundary", "invalid"].map((k) => `<span class="pill ${k}">${counts[k]} ${k}</span>`).join("");
+
+  let html = problems.map(({ fn, errs }) =>
+    `<div class="fn-block"><h3>${esc(fn.name)} <span class="pill invalid">needs fixing</span></h3><p class="note">${esc(errs.join("; "))}</p></div>`).join("");
+  for (const { fn, cases } of results) {
+    html += `<div class="fn-block"><h3>${esc(fn.name)}<span class="pill total">${cases.length} cases</span></h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Category</th><th>What varies</th><th>Inputs</th><th>Expected</th></tr></thead>
+        <tbody>${cases.map((c) => {
+          const e = expectationFor(fn, c);
+          const placeholder = state.expected[caseKey(c)] ? "" : e.text;
+          return `<tr class="cat-${c.category}">
+            <td class="id">${c.id}</td>
+            <td><span class="pill ${c.category}">${c.category}</span></td>
+            <td>${esc(c.description)}</td>
+            <td class="inputs">${esc(Object.entries(c.inputs).map(([k, v]) => `${k}=${short(v, 60)}`).join(", ") || "(no arguments)")}</td>
+            <td class="expected"><input type="text" data-exp="${esc(caseKey(c))}" value="${esc(state.expected[caseKey(c)] || "")}" placeholder="${esc(placeholder)}" aria-label="Expected result for ${c.id}" spellcheck="false"></td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table></div></div>`;
+  }
+  $("#cases-out").innerHTML = html || '<p class="empty">Add a function to see test cases.</p>';
+
+  lastScript = results.length ? renderScript(spec, results) : "# Fix the spec errors to generate a script.\n";
+  $("#script-out").innerHTML = highlight(lastScript);
+  const base = (spec.module.split(/[\\/]/).pop() || "module").replace(/\.py$/, "").split(".").pop();
+  $("#script-name").textContent = base.replace(/\W/g, "_");
+  lastSpecJson = JSON.stringify(specToDict(spec), null, 2) + "\n";
+  $("#spec-out").textContent = lastSpecJson;
+}
+
+function highlight(src) {
+  const re = /("""[\s\S]*?"""|f?"(?:\\.|[^"\\\n])*"|f?'(?:\\.|[^'\\\n])*'|#[^\n]*|\b(?:import|from|def|if|elif|else|with|as|assert|is|not|and|or|for|in|return|None|True|False)\b)/g;
+  let out = "", last = 0, m;
+  while ((m = re.exec(src))) {
+    out += esc(src.slice(last, m.index));
+    const t = m[0];
+    const cls = t.startsWith("#") ? "com" : /^[f"']/.test(t) && !/^for$|^from$/.test(t) ? "str" : "kw";
+    out += `<span class="${cls}">${esc(t)}</span>`;
+    last = m.index + t.length;
+  }
+  return out + esc(src.slice(last));
+}
+
+function renderTabs() {
+  for (const t of ["cases", "script", "spec"]) {
+    $("#tab-" + t).setAttribute("aria-selected", String(state.tab === t));
+    $("#view-" + t).hidden = state.tab !== t;
+  }
+  for (const b of $("#strategy").children) b.setAttribute("aria-pressed", String(b.dataset.s === state.strategy));
+}
+
+function renderAll() {
+  if (state.current >= state.functions.length) state.current = 0;
+  $("#module").value = state.module;
+  renderChips(); renderEditor(); renderTabs(); renderOutput(); save();
+}
+function refresh() {
+  // Re-render output without rebuilding the editor (keeps focus while typing).
+  $("#sig").textContent = signatureText(state.functions[state.current]);
+  renderChips(); renderOutput(); save();
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 1800);
+}
+async function copy(text, what) {
+  try { await navigator.clipboard.writeText(text); toast(`Copied ${what}`); }
+  catch (e) {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand("copy"); } catch (_) { /* ignore */ }
+    ta.remove(); toast(ok ? `Copied ${what}` : "Copy was blocked. Select the text and copy it yourself.");
+  }
+}
+
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("button"); if (!t) return;
+  if (t.dataset.fn) { state.current = +t.dataset.fn; renderAll(); }
+  else if (t.id === "add-fn") {
+    state.functions.push({ name: "new_function", raises_on_invalid: "", description: "", parameters: [blankParam()] });
+    state.current = state.functions.length - 1; renderAll(); $("#fn-name").select();
+  } else if (t.id === "remove-fn") { state.functions.splice(state.current, 1); state.current = 0; renderAll(); }
+  else if (t.id === "add-param") {
+    const fn = state.functions[state.current];
+    let k = fn.parameters.length + 1; while (fn.parameters.some((p) => p.name === "arg" + k)) k++;
+    fn.parameters.push(blankParam({ name: "arg" + k })); renderAll();
+  } else if (t.dataset.remove != null) { state.functions[state.current].parameters.splice(+t.dataset.remove, 1); renderAll(); }
+  else if (t.dataset.s) { state.strategy = t.dataset.s; renderTabs(); renderOutput(); save(); }
+  else if (t.getAttribute("role") === "tab") { state.tab = t.id.slice(4); renderTabs(); save(); }
+  else if (t.dataset.copy) {
+    const k = t.dataset.copy;
+    if (k === "script") copy(lastScript, "pytest script");
+    else if (k === "spec") copy(lastSpecJson, "spec JSON");
+    else copy(exportCases(lastResults, k), `test cases as ${k === "markdown" ? "Markdown" : k.toUpperCase()}`);
+  } else if (t.id === "reset-btn") { state = freshState(); renderAll(); toast("Loaded the calculator example"); }
+  else if (t.id === "import-btn") doImport();
+});
+
+document.addEventListener("input", (ev) => {
+  const el = ev.target;
+  if (el.id === "module") { state.module = el.value; refresh(); return; }
+  const fn = state.functions[state.current];
+  if (el.id === "fn-name") { fn.name = el.value.trim(); refresh(); return; }
+  if (el.id === "fn-raises") { fn.raises_on_invalid = el.value; refresh(); return; }
+  if (el.dataset.exp != null) { state.expected[el.dataset.exp] = el.value; save(); renderScriptOnly(); return; }
+  const card = el.closest(".param");
+  if (card && el.dataset.k) {
+    const p = fn.parameters[+card.dataset.p];
+    p[el.dataset.k] = el.type === "checkbox" ? el.checked : el.value;
+    if (el.tagName === "SELECT" || el.type === "checkbox") { renderAll(); return; }
+    refresh();
+    const errs = normParam(p).errors;
+    let box = card.querySelector(".err");
+    if (errs.length && !box) { box = document.createElement("div"); box.className = "err"; box.setAttribute("role", "alert"); card.appendChild(box); }
+    if (box) { if (errs.length) box.textContent = errs.join("; "); else box.remove(); }
+  }
+});
+function renderScriptOnly() {
+  const { spec, results } = generateAll();
+  lastScript = results.length ? renderScript(spec, results) : lastScript;
+  $("#script-out").innerHTML = highlight(lastScript);
+}
+
+function doImport() {
+  const text = $("#import-text").value.trim();
+  const status = $("#import-status");
+  status.classList.remove("bad");
+  if (!text) { status.textContent = "Paste some Python code or a spec JSON first."; status.classList.add("bad"); return; }
+  try {
+    if (text.startsWith("{")) {
+      const imported = specFromJson(JSON.parse(text));
+      state.module = imported.module || state.module; state.functions = imported.functions; state.current = 0;
+      status.textContent = `Loaded ${imported.functions.length} function(s) from the spec.`;
+    } else {
+      const fns = parsePythonSource(text);
+      if (!fns.length) throw new Error("No public def statements found.");
+      for (const f of fns) {
+        const at = state.functions.findIndex((g) => g.name === f.name);
+        if (at >= 0) state.functions[at] = f; else state.functions.push(f);
+      }
+      state.current = state.functions.findIndex((g) => g.name === fns[0].name);
+      status.textContent = `Imported ${fns.map((f) => f.name).join(", ")}. Add ranges and lengths so boundaries are meaningful.`;
+    }
+    renderAll();
+  } catch (e) {
+    status.textContent = "Couldn't import: " + e.message; status.classList.add("bad");
+  }
+}
+
+state = load();
+renderAll();
+</script>
