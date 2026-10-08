@@ -179,7 +179,7 @@ class ApiPlanContext:
 def _request(method: str, path: str, *, headers=None, query=None, body=None, raw_body=None, expect=None, store=None) -> dict:
     opts: dict[str, Any] = {"method": method, "url": BASE_VAR + path}
     if headers:
-        opts["headers"] = headers
+        opts["headers"] = dict(headers)  # copy: callers share one auth dict between tests
     if query:
         opts["query"] = query
     if body is not None:

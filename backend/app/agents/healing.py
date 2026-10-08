@@ -68,7 +68,7 @@ def rank_candidates(target: dict, candidates: list[dict], limit: int = 3) -> lis
         texts = [c.get(k, "") for k in ("text", "label", "aria_label", "placeholder", "testid", "name", "id")]
         sim = max((difflib.SequenceMatcher(None, wanted, _norm(t)).ratio() for t in texts if t), default=0.0)
         if wanted and any(wanted in _norm(t) or (_norm(t) and _norm(t) in wanted) for t in texts if t):
-            sim = max(sim, 0.8)
+            sim = max(sim, 0.85)
         if kinds and role not in kinds:
             sim *= 0.6
         if sim < 0.45:
@@ -78,7 +78,8 @@ def rank_candidates(target: dict, candidates: list[dict], limit: int = 3) -> lis
             continue
         loc, matched = locs[0]
         # Uniqueness at failure time: how many captured elements share this locator text.
-        dupes = sum(1 for o in candidates if _norm(matched) in [_norm(o.get(k, "")) for k in ("text", "label", "aria_label", "placeholder", "testid")])
+        dupes = sum(1 for o in candidates if o.get("visible", True)
+                    and _norm(matched) in [_norm(o.get(k, "")) for k in ("text", "label", "aria_label", "placeholder", "testid")])
         unique = dupes <= 1
         conf = sim * (1.0 if unique else 0.7)
         scored.append({

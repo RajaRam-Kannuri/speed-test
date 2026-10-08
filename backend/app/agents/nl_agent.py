@@ -146,6 +146,7 @@ class RulePlanner:
         self.plan = NLPlan(title="")
         self.last_created: Optional[str] = None
         self.logged_in = False
+        self.pending: list[str] = []
 
     def add(self, *steps: dict) -> list[int]:
         start = len(self.plan.steps)
@@ -213,6 +214,11 @@ class RulePlanner:
                 self.current = p
                 return self.add(_step("navigate", None, url.group(0), f"Open {url.group(0)}")), ""
             rest = re.sub(r"^(open|launch|go to|navigate to|visit|browse to|load|start at|start on)\s+", "", low)
+            # "open the app and <something else>": handle the remainder as its own clause.
+            tail = re.match(r"^((?:the\s+)?(?:app|application|site|website|home ?page|portal|system)(?:\s+page)?)\s+and\s+(.+)$", rest)
+            if tail:
+                rest = tail.group(1)
+                self.pending.append(c[len(c) - len(tail.group(2)):])
             if re.search(r"\b(app|application|site|website|home ?page|portal|system)\b", rest) and not re.search(r"\b(dashboard|login|sign)\b", rest):
                 p = self.site.page_for_path("/")
                 self.current = p
@@ -350,8 +356,11 @@ class RulePlanner:
 
     def run(self, text: str) -> NLPlan:
         clauses = split_clauses(text)
-        for clause in clauses:
+        while clauses:
+            clause = clauses.pop(0)
             idx, note = self.handle(clause)
+            clauses[0:0] = self.pending
+            self.pending = []
             self.plan.interpretation.append({"clause": clause, "steps": idx, "note": note})
             if note:
                 self.plan.questions.append(note + " Can you rephrase it, for example \"click the Save button\" or \"verify 'Welcome' is visible\"?")

@@ -160,7 +160,8 @@ def post_message(conversation_id: uuid.UUID, body: MessageIn, principal: Princip
         db.commit()
         return {"messages": [message_out(reply)]}
 
-    if stored and not re.search(r"\b(open|go|navigate|click|verify|log ?in|sign ?in|create|test)\b", low):
+    remainder = CRED_RE.sub("", body.content).lower()
+    if stored and not re.search(r"\b(open|go to|navigate|click|verify|log ?in|sign ?in|create|test)\b", remainder):
         reply = _reply(db, conv, f"Saved {', '.join(stored)} to the project's default environment. Secrets are encrypted and never shown again.",
                        {"kind": "info", "stored_variables": stored})
         db.commit()
