@@ -1,0 +1,33 @@
+{
+  "module": "examples/calculator.py",
+  "functions": [
+    {
+      "name": "divide",
+      "description": "Divide a by b",
+      "raises_on_invalid": "ValueError",
+      "parameters": [
+        {"name": "a", "type": "int", "min": -100, "max": 100},
+        {"name": "b", "type": "int", "min": -100, "max": 100, "exclude": [0]}
+      ]
+    },
+    {
+      "name": "greet",
+      "description": "Build a greeting",
+      "raises_on_invalid": "ValueError",
+      "parameters": [
+        {"name": "name", "type": "str", "min_length": 1, "max_length": 20},
+        {"name": "style", "type": "str", "choices": ["formal", "casual"]},
+        {"name": "title", "type": "str", "nullable": true}
+      ]
+    },
+    {
+      "name": "average",
+      "description": "Mean of 1-10 numbers",
+      "raises_on_invalid": "ValueError",
+      "parameters": [
+        {"name": "values", "type": "list", "min_length": 1, "max_length": 10,
+         "items": {"type": "float", "min": -1000, "max": 1000}}
+      ]
+    }
+  ]
+}

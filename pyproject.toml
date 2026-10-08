@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "testgen"
+version = "0.1.0"
+description = "Generate test cases and pytest scripts from function specs"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+testgen = "testgen.cli:main"
+
+[tool.setuptools]
+packages = ["testgen"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
