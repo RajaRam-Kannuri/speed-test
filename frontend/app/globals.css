@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 98%;
+    --foreground: 230 15% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 230 15% 12%;
+    --primary: 245 62% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 225 20% 95%;
+    --secondary-foreground: 230 15% 18%;
+    --muted: 225 20% 95%;
+    --muted-foreground: 228 9% 44%;
+    --accent: 245 70% 96%;
+    --accent-foreground: 245 55% 40%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 16% 89%;
+    --input: 225 16% 86%;
+    --ring: 245 62% 52%;
+    --radius: 0.5rem;
+    --font-sans: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased font-sans; font-feature-settings: "cv11", "ss01"; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}

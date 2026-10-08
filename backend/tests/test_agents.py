@@ -145,6 +145,8 @@ def _result(status="failed", error="", steps=None, failed_index=None):
      {"last_action": "click"}, "locator_failure"),
     ("Error: expect(locator).toBeVisible() failed\nLocator: getByText('Welcome')", {"last_action": "assert_visible"}, "assertion_failure"),
     ("Test timeout of 30000ms exceeded.", {}, "timeout"),
+    ("Test timeout of 15000ms exceeded.\n\nError: locator.click: Test timeout of 15000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Go' })",
+     {"last_action": "click"}, "locator_failure"),
     ("SyntaxError: Unexpected token", {}, "automation_defect"),
     ("something odd", {}, "unknown"),
 ])

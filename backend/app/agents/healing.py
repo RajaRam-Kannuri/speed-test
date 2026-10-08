@@ -78,17 +78,25 @@ def rank_candidates(target: dict, candidates: list[dict], limit: int = 3) -> lis
             continue
         loc, matched = locs[0]
         # Uniqueness at failure time: how many captured elements share this locator text.
-        dupes = sum(1 for o in candidates if o.get("visible", True)
+        # Ambiguity only matters among elements of the same kind (a link and a button can share text).
+        def same_role(o: dict) -> bool:
+            r = o.get("role") or ROLE_BY_TAG.get(o.get("tag", ""), "")
+            if o.get("tag") == "input" and not r:
+                r = {"checkbox": "checkbox", "radio": "radio", "submit": "button"}.get(o.get("type", ""), "textbox")
+            return r == role
+        dupes = sum(1 for o in candidates if o.get("visible", True) and same_role(o)
                     and _norm(matched) in [_norm(o.get(k, "")) for k in ("text", "label", "aria_label", "placeholder", "testid")])
         unique = dupes <= 1
         conf = sim * (1.0 if unique else 0.7)
+        if conf < 0.4:
+            continue
         scored.append({
             "target": loc,
             "confidence": round(min(conf, 0.97), 2),
             "rationale": (
                 f"Element <{c.get('tag')}> with text \"{(c.get('text') or c.get('label') or c.get('aria_label') or '')[:60]}\" "
                 f"matched the original locator \"{wanted}\" with similarity {sim:.2f}; "
-                + ("it was the only matching element on the page when the test failed." if unique else "other elements had similar text, so confidence is reduced.")
+                + ("it was the only element of that kind with this text when the test failed." if unique else "other elements had similar text, so confidence is reduced.")
             ),
         })
     scored.sort(key=lambda s: s["confidence"], reverse=True)

@@ -130,7 +130,7 @@ def analyze_result(db: Session, result: TestResult, failure_info: dict | None = 
         return make("application_defect", 0.7, "The response body does not match the documented schema.",
                     ["The API breaks its contract, or the specification is out of date."],
                     ["Compare the schema error with the API specification and agree which one is correct"])
-    if re.search(r"Test timeout of \d+ms exceeded", msg) and not re.search(r"locator|getBy", msg):
+    if re.search(r"Test timeout of \d+ms exceeded", msg) and not re.search(r"waiting for (getBy|locator)", msg):
         return make("timeout", 0.75, "The test exceeded its time limit.",
                     ["The application may be slow, or a step is waiting for something that never happens."],
                     ["Check the trace for the slowest step", "Raise the test timeout only if the application is legitimately slow"])

@@ -56,7 +56,9 @@ def _config_js(execution: TestExecution) -> str:
         "testDir": "tests",
         "outputDir": "artifacts",
         "timeout": execution.timeout_ms,
-        "expect": {"timeout": min(10_000, execution.timeout_ms)},
+        # Keep action/assertion timeouts well under the test timeout so the real cause
+        # (e.g. a missing element) is reported instead of a generic test timeout.
+        "expect": {"timeout": max(3_000, min(10_000, execution.timeout_ms // 3))},
         "retries": execution.retries,
         "workers": max(1, min(execution.workers, get_settings().max_parallel_workers)),
         "fullyParallel": execution.workers > 1,
@@ -67,8 +69,8 @@ def _config_js(execution: TestExecution) -> str:
             "screenshot": execution.capture_screenshot,
             "video": execution.capture_video,
             "trace": execution.capture_trace,
-            "actionTimeout": min(15_000, execution.timeout_ms),
-            "navigationTimeout": min(30_000, execution.timeout_ms),
+            "actionTimeout": max(3_000, min(15_000, execution.timeout_ms // 2)),
+            "navigationTimeout": max(5_000, min(30_000, execution.timeout_ms // 2)),
             "ignoreHTTPSErrors": False,
             "acceptDownloads": False,
         },
@@ -249,7 +251,9 @@ def _apply_test_result(db: Session, execution: TestExecution, project: Project, 
     r.finished_at = (r.started_at or utcnow()) + timedelta(milliseconds=final.get("duration", 0))
     err = final.get("error") or {}
     if r.status in ("failed", "error") and err:
-        r.error_message = redact(ANSI_RE.sub("", err.get("message", ""))[:5000], secrets)
+        # Playwright can report several errors (e.g. a test timeout plus the action that was waiting); keep them all.
+        messages = [e.get("message", "") for e in final.get("errors", []) if e.get("message")] or [err.get("message", "")]
+        r.error_message = redact(ANSI_RE.sub("", "\n\n".join(dict.fromkeys(messages)))[:5000], secrets)
         r.error_stack = redact(ANSI_RE.sub("", err.get("stack") or "")[:8000], secrets)
     r.step_results = _step_results(final, secrets)
     r.failed_step_index = next((i for i, s in enumerate(r.step_results) if s["status"] == "failed"), None)
@@ -326,10 +330,30 @@ def _finish(db: Session, execution: TestExecution, results: list[TestResult], ca
     if report_errors:
         msgs = "; ".join((e.get("message") or "")[:300] for e in report_errors if isinstance(e, dict))
         execution.error_message = (execution.error_message or "") + msgs
-    db.commit()
+    # Build reports before committing the final status, so clients that stop polling
+    # at a terminal status always see the reports too.
+    db.flush()
     try:
         from ..agents.reporting import build_execution_reports
 
-        build_execution_reports(db, execution.id)
+        build_execution_reports(db, execution.id)  # commits
     except Exception:  # noqa: BLE001
         log.exception("report generation failed for %s", execution.id)
+        db.rollback()
+        _finish_without_reports(db, execution.id, cancelled, timed_out)
+    db.commit()
+
+
+def _finish_without_reports(db: Session, execution_id: uuid.UUID, cancelled: bool, timed_out: bool) -> None:
+    """Fallback when report generation fails: still persist the final counts and status."""
+    execution = db.get(TestExecution, execution_id)
+    results = list(db.scalars(select(TestResult).where(TestResult.execution_id == execution_id)))
+    execution.total = len(results)
+    execution.passed = sum(1 for r in results if r.status in ("passed", "flaky"))
+    execution.flaky = sum(1 for r in results if r.status == "flaky")
+    execution.failed = sum(1 for r in results if r.status in ("failed", "error"))
+    execution.skipped = sum(1 for r in results if r.status in ("skipped", "cancelled"))
+    execution.finished_at = utcnow()
+    execution.status = "cancelled" if cancelled else "error" if timed_out else (
+        "passed" if execution.total and not execution.failed and execution.passed else "failed")
+    db.commit()
