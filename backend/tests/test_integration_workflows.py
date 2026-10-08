@@ -192,3 +192,24 @@ def test_idempotent_execution_creation(api, sample_app):
     first = api.post(f"/api/projects/{project['id']}/executions", json=body).json()
     second = api.post(f"/api/projects/{project['id']}/executions", json=body).json()
     assert first["id"] == second["id"]
+
+
+def test_runtime_network_guard_blocks_internal_targets(api, sample_app):
+    """URLs hidden behind variables pass static validation but are blocked by the engine at run time."""
+    project = make_project(api, "Guard", sample_app)
+    case = api.post(f"/api/projects/{project['id']}/test-cases", json={"title": "Reach loopback via variable", "steps": [
+        {"action": "set_variable", "value": "http://127.0.0.2:9/", "options": {"name": "target"}},
+        {"action": "navigate", "value": "{{target}}"},
+        {"action": "assert_title", "value": "anything"},
+    ]}).json()
+    assert case["validation_status"] != "invalid"
+    api_case = api.post(f"/api/projects/{project['id']}/test-cases", json={"title": "Metadata via variable", "kind": "api", "steps": [
+        {"action": "set_variable", "value": "http://169.254.169.254", "options": {"name": "meta"}},
+        {"action": "api_request", "options": {"method": "GET", "url": "{{meta}}/latest/meta-data", "expect": {"status": [200]}}},
+    ]}).json()
+    ex = _wait_execution(api, api.post(f"/api/projects/{project['id']}/executions",
+                                       json={"test_case_ids": [case["id"], api_case["id"]], "timeout_ms": 20000}).json())
+    assert ex["status"] == "failed" and ex["failed"] == 2
+    for r in ex["results"]:
+        assert "blocked by network policy" in r["error_message"]
+        assert r["failure"]["category"] == "environment_failure"

@@ -1,0 +1,16 @@
+# Azure DevOps. Define LORVENLAX_URL, LORVENLAX_PROJECT_ID, LORVENLAX_SUITE_ID and secret LORVENLAX_TOKEN in a variable group.
+trigger: none
+pool: { vmImage: ubuntu-latest }
+steps:
+  - script: python3 docs/ci/lorvenlax_run.py
+    displayName: Run LorvenLax suite
+    env:
+      LORVENLAX_TOKEN: $(LORVENLAX_TOKEN)
+      LORVENLAX_URL: $(LORVENLAX_URL)
+      LORVENLAX_PROJECT_ID: $(LORVENLAX_PROJECT_ID)
+      LORVENLAX_SUITE_ID: $(LORVENLAX_SUITE_ID)
+      LORVENLAX_IDEMPOTENCY_KEY: azdo-$(Build.BuildId)
+      LORVENLAX_ALLURE_DIR: $(Build.ArtifactStagingDirectory)/allure-results
+  - publish: $(Build.ArtifactStagingDirectory)/allure-results
+    artifact: allure-results
+    condition: always()

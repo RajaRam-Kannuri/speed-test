@@ -1,0 +1,107 @@
+# LorvenLax AI Testing Platform - full stack.
+#   cp .env.example .env   (fill in the keys)
+#   docker compose up -d --build
+#   open http://localhost:3000   (sample app for demos: http://sample:8100 from inside the stack)
+
+x-backend: &backend
+  build: { context: ., dockerfile: backend/Dockerfile, secrets: [extra_ca] }
+  image: lorvenlax-backend:latest
+  environment: &backend-env
+    LLX_ENV: production
+    LLX_DATABASE_URL: postgresql+psycopg://lorvenlax:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/lorvenlax
+    LLX_REDIS_URL: redis://redis:6379/0
+    LLX_SECRET_KEY: ${LLX_SECRET_KEY:?set LLX_SECRET_KEY in .env}
+    LLX_ENCRYPTION_KEY: ${LLX_ENCRYPTION_KEY:?set LLX_ENCRYPTION_KEY in .env}
+    LLX_STORAGE_BACKEND: s3
+    LLX_S3_ENDPOINT_URL: http://minio:9000
+    LLX_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-lorvenlax}
+    LLX_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    LLX_S3_BUCKET: lorvenlax-artifacts
+    LLX_ANTHROPIC_API_KEY: ${LLX_ANTHROPIC_API_KEY:-}
+    LLX_AI_MODEL: ${LLX_AI_MODEL:-claude-opus-5-5}
+    LLX_ALLOWED_PRIVATE_HOSTS: ${LLX_ALLOWED_PRIVATE_HOSTS:-sample}
+    LLX_CORS_ORIGINS: http://localhost:3000
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    minio: { condition: service_started }
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lorvenlax
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: lorvenlax
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U lorvenlax"], interval: 5s, timeout: 3s, retries: 20 }
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 20 }
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-lorvenlax}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes: [miniodata:/data]
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    <<: *backend
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports: ["8000:8000"]
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "-l", "info", "-c", "2", "-Q", "lorvenlax"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    # Isolation for executing generated tests: non-root user, capped CPU/memory/processes,
+    # no access to the database credentials beyond what the worker needs, and a network
+    # guard inside every browser and API request (see engine/src/guard.ts).
+    shm_size: 1gb
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 3g, pids: 512 }
+
+  web:
+    build: { context: ./frontend, args: { BACKEND_URL: "http://api:8000" }, secrets: [extra_ca] }
+    image: lorvenlax-web:latest
+    depends_on:
+      api: { condition: service_healthy }
+    ports: ["3000:3000"]
+    restart: unless-stopped
+
+  sample:
+    build: { context: ./sample-app, secrets: [extra_ca] }
+    image: lorvenlax-sample:latest
+    ports: ["8100:8100"]
+    restart: unless-stopped
+
+# Optional CA bundle for builds behind a TLS-intercepting proxy (used only during dependency installs).
+secrets:
+  extra_ca:
+    file: ${EXTRA_CA_FILE:-./.empty-ca.pem}
+
+volumes:
+  pgdata:
+  miniodata:

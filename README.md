@@ -1,124 +1,67 @@
-# testgen
+# LorvenLax AI Testing Platform
 
-A small testing tool that **generates test cases** and **pytest test scripts**
-for Python functions. It needs only the standard library; you need `pytest`
-only to run the scripts it writes.
+**Lorven Lax Tech Labs Pvt. Ltd.**
 
-It works in three steps:
+LorvenLax is a browser-based, multi-tenant testing platform. Point it at a website or an API specification, review the tests it proposes, and run them in isolated cloud browsers. You see real results with screenshots, videos, traces and failure analysis. You don't need to write code or know Playwright.
 
-1. **Spec**: a JSON file that describes each function's parameters and their
-   constraints. You can write it by hand or draft one from type hints.
-2. **Test cases**: values for each parameter, chosen by equivalence
-   partitioning and boundary value analysis, then combined using a strategy.
-   You can export them as Markdown, CSV or JSON.
-3. **Test script**: a runnable, parametrized pytest file.
+The app opens on three options:
 
-## Web version
+| Option | You provide | The platform |
+|---|---|---|
+| **Test a Website** | A URL, and a test login if the site needs one | Discovers pages, forms and links, generates scenarios, writes Playwright tests, runs them, and analyses failures |
+| **Test an API** | An OpenAPI/Swagger file, a Postman collection, a spec URL, or a single request | Finds endpoints, then generates positive, negative, boundary, auth, duplicate, not-found and schema tests, and runs them |
+| **Describe a Test** | Instructions in plain English | Builds editable steps from what discovery found, flags missing test data, validates and compiles the code, runs it, and explains the result |
 
-`web/index.html` is a browser version of the generator, published at
-https://claude.ai/artifact/76RELjip87Fb1ujsRQUuWY. You edit the spec in a form
-(or paste Python code or a spec JSON to import it), see the test cases update
-as you type, and copy the pytest script or spec JSON. It runs entirely in the
-browser and produces the same cases as the CLI. Because a browser can't run
-your Python code, it doesn't record expected results. Instead, you can type an
-expected value for any case.
+Underneath, the platform also has a drag-and-drop **visual test builder**, suites, environments with encrypted secrets, CI/CD triggers, self-healing locator suggestions, and HTML/PDF/Allure reports.
 
-## Quick start
+## How it is built
+
+```mermaid
+flowchart LR
+  UI[Next.js UI] -->|/api, same origin| API[FastAPI]
+  API --> PG[(PostgreSQL)]
+  API -->|jobs| R[(Redis)]
+  R --> W[Celery worker]
+  W --> E[Playwright TS engine]
+  E -->|network guard| T[Website / API under test]
+  W --> S3[(S3 / MinIO artifacts)]
+  API --> AI[AI provider: Claude, optional]
+```
+
+- **The AI agents never write executable code.** They produce structured, schema-checked test steps. A deterministic generator turns those steps into Playwright TypeScript, putting every value inside a JSON string literal. Text on a page under test therefore can't inject code.
+- **Execution, assertions, scheduling and reporting are deterministic.** AI is used where reasoning helps: proposing scenarios, interpreting plain English, and explaining failures. Without an AI key, built-in deterministic agents do this work, and the UI says which engine produced each plan.
+- **Results are never fabricated.** Every status shown comes from a Playwright run that was recorded. Generated tests stay marked "Generated" until they actually run.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design, [docs/SETUP.md](docs/SETUP.md) to run it, and [docs/PROGRESS.md](docs/PROGRESS.md) for what is done, what is pending, and the verification evidence.
+
+## Quick start (Docker)
 
 ```bash
-pip install -e ".[dev]"        # or run in place with: python -m testgen ...
-
-# 1. Draft a spec from type hints, then add ranges/lengths/excludes by hand
-testgen spec examples/calculator.py -o my.spec.json
-
-# 2. Review the generated test cases
-testgen cases examples/calculator.spec.json --format markdown
-testgen cases examples/calculator.spec.json --format csv -o cases.csv
-
-# 3. Generate and run a pytest script
-testgen script examples/calculator.spec.json -o generated/test_calculator.py
-pytest generated/
+cp .env.example .env          # then fill in LLX_SECRET_KEY, LLX_ENCRYPTION_KEY and the passwords (commands are in the file)
+docker compose up -d --build
+open http://localhost:3000    # register, create a project, choose "Create Test"
 ```
 
-## Spec format
+The stack includes **Acme CRM**, a sample application to try the platform on. Inside the stack its address is `http://sample:8100` (website and OpenAPI spec at `/openapi.json`). The demo login is `demo@acme.test` / `Passw0rd!` and the API token is `demo-token`.
 
-```json
-{
-  "module": "examples/calculator.py",
-  "functions": [
-    {
-      "name": "divide",
-      "raises_on_invalid": "ValueError",
-      "parameters": [
-        {"name": "a", "type": "int", "min": -100, "max": 100},
-        {"name": "b", "type": "int", "min": -100, "max": 100, "exclude": [0]}
-      ]
-    }
-  ]
-}
-```
+To enable Claude, set `LLX_ANTHROPIC_API_KEY` (and optionally `LLX_AI_MODEL`, default `claude-opus-5-5`) in `.env`.
 
-| Field | Applies to | Meaning |
-|-------|------------|---------|
-| `module` | spec | Path to a `.py` file, relative to the directory you run from, or a dotted import name |
-| `raises_on_invalid` | function | The exception name invalid inputs should raise |
-| `type` | param | `int`, `float`, `str`, `bool`, `list`, `any` |
-| `min` / `max` | int, float | Inclusive range |
-| `min_length` / `max_length` | str, list | Inclusive length range |
-| `choices` | any | Allowed values (an enum) |
-| `exclude` | any | Values that are invalid even when inside the range |
-| `nullable` | any | `None` is a valid value |
-| `items` | list | A param spec (without `name`) for the list's elements |
-
-## How cases are generated
-
-For each parameter, values fall into three groups:
-
-- **nominal**: a typical value, such as the middle of the range
-- **boundary**: min, min+1, max-1, max, zero, empty/long/unicode strings, other choices, `None` if nullable
-- **invalid**: values just outside the range or length limits, the wrong type, `None`, excluded values, values not in `choices`
-
-The `-s/--strategy` option sets how values are combined:
-
-| Strategy | Valid values | Invalid values |
-|----------|--------------|----------------|
-| `each` (default) | Start from the nominal values and vary one parameter at a time | One at a time |
-| `pairwise` | Greedy all-pairs: every pair of values appears together at least once | One at a time |
-| `exhaustive` | Full cartesian product, capped at 500 | One at a time |
-
-Each test case uses at most one invalid value, so a failure points to exactly
-one bad input.
-
-## Expected results
-
-By default, testgen **runs the target function** to record each case's actual
-result. This makes the scripts snapshot (characterization) tests:
-
-- For valid cases, it records the return value (floats are compared with
-  `pytest.approx`) or the exception the function raised.
-- For invalid cases, when the function sets `raises_on_invalid`, the spec's
-  expectation wins. If the function behaves differently, the case gets the
-  note *possible bug*, and the generated test fails.
-
-  The example spec shows this: `average` should reject list items outside
-  [-1000, 1000] but doesn't, so `average_007` fails.
-
-With `--no-record`, the target is not run. Valid cases then become smoke tests
-(they must not raise), and invalid cases must raise some exception (or the one
-named in `raises_on_invalid`).
-
-## Project layout
+## Repository layout
 
 ```
-testgen/
-  spec.py        spec model, loading and validation
-  values.py      values for each parameter (partitions and boundaries)
-  cases.py       combination strategies -> TestCase objects
-  oracle.py      runs the target to record expected results
-  render.py      Markdown/CSV/JSON exports and the pytest script template
-  introspect.py  drafts a spec from type hints
-  cli.py         `testgen spec | cases | script`
-examples/        a sample module and its spec
-web/index.html   browser version (JavaScript port of the generator)
-tests/           tests for testgen itself (run with `pytest`)
+backend/      FastAPI app, SQLAlchemy models, Alembic migrations, agents, Celery worker, tests
+engine/       Playwright TypeScript runtime, network guard, website crawler, PDF renderer
+frontend/     Next.js + Tailwind (shadcn/ui-style) web app
+sample-app/   Acme CRM: the controlled application used by the end-to-end tests
+e2e/          Playwright tests that drive the UI through all three workflows
+docs/         Architecture, setup, progress and CI/CD adapters (docs/ci)
+testgen/      Boundary-value engine reused by API test planning (original CLI and workbench)
+scripts/      Local development helpers
+```
+
+## Tests
+
+```bash
+cd backend && pytest             # 60 tests: security, tenancy, agents, and integration runs against the sample app
+cd e2e && npx playwright test    # 6 UI tests for the three workflows and the visual builder (stack must be running)
 ```

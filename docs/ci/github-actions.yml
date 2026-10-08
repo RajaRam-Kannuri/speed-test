@@ -1,0 +1,23 @@
+# .github/workflows/lorvenlax.yml - run a LorvenLax suite after each deployment to staging.
+name: LorvenLax regression
+on:
+  workflow_dispatch:
+  deployment_status:
+jobs:
+  lorvenlax:
+    if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run LorvenLax suite
+        env:
+          LORVENLAX_URL: ${{ vars.LORVENLAX_URL }}
+          LORVENLAX_TOKEN: ${{ secrets.LORVENLAX_TOKEN }}
+          LORVENLAX_PROJECT_ID: ${{ vars.LORVENLAX_PROJECT_ID }}
+          LORVENLAX_SUITE_ID: ${{ vars.LORVENLAX_SUITE_ID }}
+          LORVENLAX_IDEMPOTENCY_KEY: gh-${{ github.run_id }}-${{ github.run_attempt }}
+          LORVENLAX_ALLURE_DIR: allure-results
+        run: python3 docs/ci/lorvenlax_run.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: allure-results, path: allure-results }

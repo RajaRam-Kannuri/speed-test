@@ -1,0 +1,18 @@
+// Jenkins declarative pipeline stage. Store the token as a "Secret text" credential named lorvenlax-token.
+pipeline {
+  agent any
+  environment {
+    LORVENLAX_URL = 'https://lorvenlax.example.com'
+    LORVENLAX_PROJECT_ID = '<project-id>'
+    LORVENLAX_SUITE_ID = '<suite-id>'
+    LORVENLAX_TOKEN = credentials('lorvenlax-token')
+    LORVENLAX_IDEMPOTENCY_KEY = "jenkins-${env.BUILD_TAG}"
+    LORVENLAX_ALLURE_DIR = 'allure-results'
+  }
+  stages {
+    stage('LorvenLax regression') {
+      steps { sh 'python3 docs/ci/lorvenlax_run.py' }
+    }
+  }
+  post { always { archiveArtifacts artifacts: 'allure-results/**', allowEmptyArchive: true } }
+}

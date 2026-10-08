@@ -1,0 +1,12 @@
+# Add to .gitlab-ci.yml. Set LORVENLAX_URL, LORVENLAX_TOKEN (masked), LORVENLAX_PROJECT_ID, LORVENLAX_SUITE_ID as CI/CD variables.
+lorvenlax:
+  stage: test
+  image: python:3.12-slim
+  variables:
+    LORVENLAX_IDEMPOTENCY_KEY: "gl-$CI_PIPELINE_ID-$CI_JOB_ID"
+    LORVENLAX_ALLURE_DIR: allure-results
+  script:
+    - python3 docs/ci/lorvenlax_run.py
+  artifacts:
+    when: always
+    paths: [allure-results]

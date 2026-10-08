@@ -1,0 +1,12 @@
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+.git
+.dev
+backend/.env
+backend/.artifacts
+engine/dist
+engine/.runs
+e2e
+frontend
