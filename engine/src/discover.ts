@@ -238,9 +238,13 @@ async function main() {
     for (const pg of result.pages) {
       try {
         await p2.goto(pg.url, { waitUntil: 'domcontentloaded' });
-        const redirected = norm(p2.url()) !== pg.url;
-        const hasPassword = (await p2.locator('input[type=password]').count()) > 0 && !pg.forms.some((f: any) => f.has_password);
-        pg.requires_login = redirected && hasPassword;
+        // Signed-out visitors either get redirected to a sign-in page or (common in single-page
+        // apps) see a sign-in form at the same address. Either way, a password field that was not
+        // on the signed-in version of the page means the page needs a session.
+        await p2.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => undefined);
+        const showsPassword = (await p2.locator('input[type=password]').count()) > 0;
+        const hadPassword = pg.forms.some((f: any) => f.has_password);
+        pg.requires_login = showsPassword && !hadPassword;
       } catch {
         pg.requires_login = false;
       }

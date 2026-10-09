@@ -128,7 +128,8 @@ export class Llx {
 
   async click(t: Target) { this.lastAction = 'click'; await this.locate(t).click(); }
   async fill(t: Target, value: string) { this.lastAction = 'fill'; await this.locate(t).fill(this.v(value)); }
-  async select(t: Target, value: string) { this.lastAction = 'select'; await this.locate(t).selectOption({ label: this.v(value) }).catch(async () => this.locate(t).selectOption(this.v(value))); }
+  // A string matches an option by value or by visible label, so one call (one wait) is enough.
+  async select(t: Target, value: string) { this.lastAction = 'select'; await this.locate(t).selectOption(this.v(value)); }
   async check(t: Target) { this.lastAction = 'check'; await this.locate(t).check(); }
   async uncheck(t: Target) { this.lastAction = 'uncheck'; await this.locate(t).uncheck(); }
   async press(t: Target | null, key: string) {

@@ -213,3 +213,27 @@ def test_runtime_network_guard_blocks_internal_targets(api, sample_app):
     for r in ex["results"]:
         assert "blocked by network policy" in r["error_message"]
         assert r["failure"]["category"] == "environment_failure"
+
+
+def test_pages_that_show_login_in_place_get_login_steps(api, sample_app):
+    """Single-page apps often show the sign-in form at the same URL instead of redirecting.
+    Discovery must still mark such pages as requiring login, so generated tests sign in first."""
+    project = make_project(api, "In-place login")
+    disc = api.post(f"/api/projects/{project['id']}/discoveries", json={
+        "url": sample_app + "/", "authorized": True, "login_url": "/login", "username": "demo@acme.test",
+        "password": "Passw0rd!", "max_pages": 12}).json()
+    disc = api.get(f"/api/discoveries/{disc['id']}").json()
+    billing = next(p for p in disc["pages"] if p["url"].endswith("/billing"))
+    assert billing["requires_login"] is True
+    assert billing["forms"] and billing["forms"][0]["fields"][0]["label"] == "Pays *"
+
+    job = api.get(f"/api/generation-jobs/{api.post(f'/api/discoveries/{disc['id']}/generate', json={}).json()['id']}").json()
+    cases = [c for c in api.get(f"/api/projects/{project['id']}/test-cases").json()
+             if c["id"] in job["result"]["test_case_ids"] and "Renew subscription" in c["title"]]
+    assert cases, "expected generated tests for the billing form"
+    for c in cases:
+        steps = api.get(f"/api/projects/{project['id']}/test-cases/{c['id']}").json()["steps"]
+        assert steps[0]["value"] == "/login" and any(s["value"] == "{{password}}" for s in steps)
+    ex = _wait_execution(api, api.post(f"/api/projects/{project['id']}/executions",
+                                       json={"test_case_ids": [c["id"] for c in cases]}).json())
+    assert ex["status"] == "passed", [(r["test_title"], r["error_message"]) for r in ex["results"] if r["status"] != "passed"]

@@ -257,3 +257,12 @@ def test_api_planner_derives_expectations_from_spec():
 def test_known_locators_include_discovered_elements():
     known = known_locators_from_pages(PAGES)
     assert ("label", "company name") in known and ("role", "sign in") in known and ("testid", "customer-table") in known
+
+
+def test_failure_on_sign_in_page_is_reported_as_missing_login():
+    info = {"last_action": "select", "last_target": {"strategy": "label", "value": "Pays *"},
+            "candidates": [{"tag": "input", "type": "password", "visible": True}, {"tag": "button", "text": "Sign in", "visible": True}]}
+    msg = "Error: locator.selectOption: Timeout 15000ms exceeded.\nCall log:\n  - waiting for getByLabel('Pays *').first()"
+    a = analyze_result(None, _result(error=msg), info)
+    assert a.category == "automation_defect" and "not signed in" in a.summary
+    assert any("sign-in form" in v for v in a.verified)

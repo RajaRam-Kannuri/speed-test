@@ -10,6 +10,7 @@ deterministic classification is never replaced silently.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -135,6 +136,22 @@ def analyze_result(db: Session, result: TestResult, failure_info: dict | None = 
                     ["The application may be slow, or a step is waiting for something that never happens."],
                     ["Check the trace for the slowest step", "Raise the test timeout only if the application is legitimately slow"])
     locator_wait = re.search(r"waiting for (getBy\w+\(.*?\)|locator\(.*?\))", msg, re.S)
+    on_sign_in = any((c.get("type") == "password" and c.get("visible", True)) for c in (info.get("candidates") or []))
+    acting_on_login_form = "password" in json.dumps(info.get("last_target") or {}).lower()
+    # If something on the page closely resembles the wanted element, it is a locator issue
+    # (e.g. a renamed button on the sign-in page itself), not a missing session.
+    resembles_target = False
+    if info.get("last_target") and info.get("candidates"):
+        from .healing import rank_candidates
+
+        resembles_target = any(c["confidence"] >= 0.6 for c in rank_candidates(info["last_target"], info["candidates"]))
+    if locator_wait and on_sign_in and not acting_on_login_form and not resembles_target:
+        verified.append("The page showed a sign-in form (password field) when the step failed")
+        return make("automation_defect", 0.8,
+                    "The test was not signed in: the application showed its sign-in page instead of the expected page.",
+                    ["The test is missing sign-in steps, the session expired, or the credentials in the environment are wrong."],
+                    ["Add sign-in steps at the start of the test (or regenerate tests after a new discovery)",
+                     "Check the username and password variables in the environment"])
     if locator_wait and info.get("last_action") in ("click", "fill", "select", "check", "uncheck", "wait_for", "press", "store_text"):
         return make("locator_failure", 0.8, "An element the test acts on could not be found.",
                     ["The element's label, text or structure probably changed, or the page did not reach the expected state."],

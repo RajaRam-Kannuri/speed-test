@@ -145,7 +145,7 @@ table{border-collapse:collapse;width:100%;background:#fff} td,th{border:1px soli
 
 def page(title: str, body: str, logged_in: bool = False) -> HTMLResponse:
     nav = (
-        '<a href="/dashboard">Dashboard</a><a href="/customers">Customers</a><a href="/logout">Log out</a>'
+        '<a href="/dashboard">Dashboard</a><a href="/customers">Customers</a><a href="/billing">Billing</a><a href="/logout">Log out</a>'
         if logged_in
         else '<a href="/">Home</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/login">Sign in</a>'
     )
@@ -222,6 +222,37 @@ def logout(request: Request):
 
 def guard(request: Request) -> Optional[RedirectResponse]:
     return None if logged_in(request) else RedirectResponse("/login", status_code=303)
+
+
+LOGIN_FORM = """<form method=post action=/login aria-label="Sign in form">
+        <label>Username <input name=email type=text required autocomplete=username></label>
+        <label>Password <input name=password type=password required autocomplete=current-password></label>
+        <button type=submit>Sign in</button>
+      </form>"""
+
+
+@app.get("/billing", response_class=HTMLResponse, include_in_schema=False)
+def billing(request: Request, saved: int = 0):
+    # Behaves like many single-page apps: signed-out visitors get the sign-in form at the
+    # same address (HTTP 200, no redirect) instead of being sent to /login.
+    if not logged_in(request):
+        return page("Billing", "<h1>Sign in</h1>" + LOGIN_FORM)
+    note = "<p class=ok role=status>Subscription renewed</p>" if saved else ""
+    return page("Billing", f"""<h1>Billing</h1>{note}
+      <form method=post action=/billing aria-label="Renew subscription">
+        <label>Pays * <select name=period required><option value="">Choose…</option><option>Monthly</option><option>Yearly</option></select></label>
+        <label>Seats <input name=seats type=number min=1 max=50 required></label>
+        <button type=submit>Renew subscription</button>
+      </form>""", True)
+
+
+@app.post("/billing", include_in_schema=False)
+def billing_submit(request: Request, period: str = Form(""), seats: str = Form("")):
+    if not logged_in(request):
+        return RedirectResponse("/billing", status_code=303)
+    if period not in ("Monthly", "Yearly") or not seats.isdigit():
+        return page("Billing", "<h1>Billing</h1><p class=error role=alert>Choose a period and number of seats.</p>", True)
+    return RedirectResponse("/billing?saved=1", status_code=303)
 
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
