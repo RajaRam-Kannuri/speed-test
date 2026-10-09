@@ -191,7 +191,9 @@ def contact_submit(name: str = Form(""), email: str = Form(""), message: str = F
 
 
 @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
-def login_form(error: int = 0):
+def login_form(request: Request, error: int = 0):
+    if logged_in(request):  # like many apps, signed-in users never see the sign-in page
+        return RedirectResponse("/dashboard", status_code=303)
     err = "<p class=error role=alert>Invalid email or password</p>" if error else ""
     return page("Sign in", f"""<h1>Sign in</h1>{err}
       <form method=post action=/login aria-label="Sign in form">
@@ -255,6 +257,29 @@ def billing_submit(request: Request, period: str = Form(""), seats: str = Form("
     return RedirectResponse("/billing?saved=1", status_code=303)
 
 
+@app.get("/account/password", response_class=HTMLResponse, include_in_schema=False)
+def change_password_form(request: Request, changed: int = 0):
+    if (r := guard(request)):
+        return r
+    note = "<p class=ok role=status>Password changed (practice only - the demo password stays the same)</p>" if changed else ""
+    return page("Change password", f"""<h1>Change password</h1>{note}
+      <form method=post action=/account/password aria-label="Change password form">
+        <label>Current password * <input name=current type=password required></label>
+        <label>New password * <input name=new type=password required minlength=8></label>
+        <label>New password again * <input name=again type=password required minlength=8></label>
+        <button type=submit>Change password</button>
+      </form>""", True)
+
+
+@app.post("/account/password", include_in_schema=False)
+def change_password(request: Request, current: str = Form(""), new: str = Form(""), again: str = Form("")):
+    if (r := guard(request)):
+        return r
+    if current != DEMO_USER[1] or len(new) < 8 or new != again:
+        return page("Change password", "<h1>Change password</h1><p class=error role=alert>Check the passwords and try again.</p>", True)
+    return RedirectResponse("/account/password?changed=1", status_code=303)
+
+
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 def dashboard(request: Request):
     if (r := guard(request)):
@@ -262,7 +287,7 @@ def dashboard(request: Request):
     plans = {p: sum(1 for c in customers.values() if c["plan"] == p) for p in ("Free", "Pro", "Enterprise")}
     items = "".join(f"<li>{p}: {n}</li>" for p, n in plans.items())
     return page("Dashboard", f"<h1>Dashboard</h1><p data-testid=customer-total>{len(customers)} customers</p>"
-                f"<ul>{items}</ul><p><a href='/customers/new'>Add a customer</a></p>", True)
+                f"<ul>{items}</ul><p><a href='/customers/new'>Add a customer</a></p><p><a href='/account/password'>Change password</a></p>", True)
 
 
 @app.get("/customers", response_class=HTMLResponse, include_in_schema=False)

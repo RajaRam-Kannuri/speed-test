@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any, Optional
 from urllib.parse import urlsplit
 
@@ -135,19 +136,47 @@ def _login_steps(login_page: Any, form: dict) -> list[dict]:
     return steps
 
 
+SENSITIVE_FORM = re.compile(r"(change|reset|update|new)\W*password|delete|remove|deactivate|close\W*account|unsubscribe|cancel\W*(account|subscription)", re.I)
+
+
+def _password_fields(form: dict) -> int:
+    return sum(1 for f in form.get("fields", []) if f.get("type") == "password")
+
+
+def is_sign_in_form(form: dict) -> bool:
+    """Exactly one password field plus a username/email field. Change-password and
+    registration forms have several password fields and are not sign-in forms."""
+    return _password_fields(form) == 1 and any(f.get("type") in ("text", "email", "tel") for f in form.get("fields", []))
+
+
+def is_sensitive_form(form: dict) -> bool:
+    """Forms that must never be submitted with valid data by generated tests."""
+    text = " ".join([form.get("name") or "", (form.get("submit") or {}).get("text") or ""])
+    return _password_fields(form) >= 2 or bool(SENSITIVE_FORM.search(text))
+
+
+def find_login(login_result: Optional[dict], pages: list[Any]) -> tuple[Optional[Any], Optional[dict]]:
+    """The sign-in page and form. Prefer the form recorded while discovery signed in."""
+    lr = login_result or {}
+    if lr.get("form"):
+        page_like = SimpleNamespace(url=lr.get("page_url") or lr.get("url"), title="Sign in", requires_login=False,
+                                    headings=[], forms=[lr["form"]], links=[], buttons=[], tables=[])
+        return page_like, lr["form"]
+    candidates = [(p, f) for p in pages for f in (p.forms or []) if is_sign_in_form(f)]
+    if lr.get("url"):
+        wanted = _path(lr["url"]).split("?")[0]
+        for p, f in candidates:
+            if _path(p.url).split("?")[0] == wanted:
+                return p, f
+    return candidates[0] if candidates else (None, None)
+
+
 def plan_from_discovery(discovery: Any, pages: list[Any]) -> list[PlannedTest]:
     tests: list[PlannedTest] = []
     if not pages:
         return tests
     login_ok = bool((discovery.login_result or {}).get("success"))
-    login_page, login_form = None, None
-    for p in pages:
-        for form in p.forms or []:
-            if form.get("has_password"):
-                login_page, login_form = p, form
-                break
-        if login_form:
-            break
+    login_page, login_form = find_login(discovery.login_result, pages)
     prefix_login = _login_steps(login_page, login_form) if (login_ok and login_form) else []
 
     def needs_login(page: Any) -> list[dict]:
@@ -256,6 +285,8 @@ def plan_from_discovery(discovery: Any, pages: list[Any]) -> list[PlannedTest]:
                     f"Submits {name} with all fields empty; required fields ({', '.join(f.get('label') or f.get('name') for f in required)}) should block submission.",
                     base + [sub, _step("assert_url", None, fp, f"Still on {fp}"), _step("assert_hidden", {"strategy": "role", "value": "status"}, None, "No success message")],
                     "inferred", ["form", "validation"]))
+            if is_sensitive_form(form):
+                continue  # never submit password changes, deletions etc. with otherwise valid data
             email = next((f for f in form["fields"] if f["type"] == "email"), None)
             if email:
                 tests.append(PlannedTest(

@@ -266,3 +266,22 @@ def test_failure_on_sign_in_page_is_reported_as_missing_login():
     a = analyze_result(None, _result(error=msg), info)
     assert a.category == "automation_defect" and "not signed in" in a.summary
     assert any("sign-in form" in v for v in a.verified)
+
+
+def test_sign_in_form_is_not_confused_with_change_password():
+    change = {"name": "Change password", "has_password": True, "fields": [
+        {"type": "password", "label": "Current password *", "locators": [{"strategy": "label", "value": "Current password *"}]},
+        {"type": "password", "label": "New password *", "locators": [{"strategy": "label", "value": "New password *"}]},
+        {"type": "password", "label": "New password again *", "locators": [{"strategy": "label", "value": "New password again *"}]}],
+        "submit": {"text": "Change password", "locators": [{"strategy": "role", "value": "button", "name": "Change password"}]}}
+    pages = [page("https://app.test/account/password", "Change password", True, forms=[change])] + PAGES
+    # Change-password form first in crawl order, sign-in page found later: still picks the sign-in form.
+    lp, lf = website_planner.find_login({"success": True, "url": "https://app.test/login"}, pages)
+    assert lp.url == "https://app.test/login" and lf is LOGIN_FORM
+    # The form recorded during the discovery sign-in wins even when the page was never crawled.
+    lp, lf = website_planner.find_login({"success": True, "url": "https://app.test/login", "page_url": "https://app.test/signin",
+                                         "form": LOGIN_FORM}, [pages[0]])
+    assert lp.url == "https://app.test/signin" and lf is LOGIN_FORM
+    assert website_planner.is_sensitive_form(change)
+    assert not website_planner.is_sensitive_form(CUSTOMER_FORM)
+    assert website_planner.is_sensitive_form({"name": "Delete account", "fields": [], "submit": {"text": "Delete"}})

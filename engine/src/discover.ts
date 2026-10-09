@@ -171,17 +171,24 @@ async function main() {
       await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
       const pwd = page.locator('input[type=password]').first();
       await pwd.waitFor({ timeout });
-      const form = page.locator('form', { has: pwd }).first();
-      const user = form.locator('input[type=email],input[type=text],input:not([type])').first();
+      // Record the sign-in form now: once signed in, many apps never show this page again,
+      // and later pages (e.g. change-password) also contain password fields.
+      const before = await extract(page);
+      const signInForm = before.forms.find((f: any) => f.fields.filter((x: any) => x.type === 'password').length === 1
+        && f.fields.some((x: any) => ['text', 'email', 'tel'].includes(x.type))) || null;
+      const signInPage = page.url();
+      const formEl = page.locator('form', { has: pwd });
+      const scope = (await formEl.count()) ? formEl.first() : page.locator('body');
+      const user = scope.locator('input[type=email],input[type=text],input[type=tel],input:not([type])').first();
       await user.fill(config.login.username);
       await pwd.fill(config.login.password);
-      await Promise.all([
-        page.waitForLoadState('domcontentloaded'),
-        form.locator('button[type=submit],input[type=submit],button:not([type])').first().click(),
-      ]);
-      await page.waitForTimeout(500);
+      // Prefer a button that says sign in / log in, so a "Show password" toggle is never clicked.
+      const named = scope.getByRole('button', { name: /sign ?in|log ?in|login|submit|continue/i });
+      const submit = (await named.count()) ? named.first() : scope.locator('button[type=submit],input[type=submit]').first();
+      await Promise.all([page.waitForLoadState('domcontentloaded'), submit.click()]);
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
       const stillLogin = await page.locator('input[type=password]').count();
-      result.login = { url: loginUrl, success: stillLogin === 0, landed_on: page.url() };
+      result.login = { url: loginUrl, page_url: signInPage, success: stillLogin === 0, landed_on: page.url(), form: signInForm };
     } catch (err: any) {
       result.login = { url: loginUrl, success: false, error: String(err.message || err).slice(0, 300) };
     }
@@ -244,7 +251,10 @@ async function main() {
         await p2.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => undefined);
         const showsPassword = (await p2.locator('input[type=password]').count()) > 0;
         const hadPassword = pg.forms.some((f: any) => f.has_password);
-        pg.requires_login = showsPassword && !hadPassword;
+        const redirectedAway = norm(p2.url()) !== pg.url;
+        // Either a sign-in form appears in place (single-page apps), or the visit is redirected
+        // to a page with a password field (covers pages that have password fields themselves).
+        pg.requires_login = showsPassword && (!hadPassword || redirectedAway);
       } catch {
         pg.requires_login = false;
       }

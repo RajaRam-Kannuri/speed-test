@@ -16,7 +16,7 @@ from typing import Any, Optional
 from urllib.parse import urlsplit
 
 from .llm import STEP_SCHEMA, LLMUnavailable, get_provider, untrusted
-from .website_planner import _best, _fill_form_steps, _path, _step, _submit, _title_core, sample_value
+from .website_planner import find_login, _best, _fill_form_steps, _path, _step, _submit, _title_core, sample_value
 
 VERBS = r"(?:open|launch|go|navigate|visit|browse|click|tap|press|enter|type|fill|input|select|choose|pick|check|tick|uncheck|verify|check|ensure|assert|confirm|validate|expect|see|wait|log|sign|login|create|add|submit|take|capture|search|store|save|logout)"
 
@@ -64,14 +64,7 @@ class SiteModel:
     def __init__(self, pages: list[Any], login_result: Optional[dict]):
         self.pages = pages
         self.login_result = login_result or {}
-        self.login_page, self.login_form = None, None
-        for p in pages:
-            for f in p.forms or []:
-                if f.get("has_password"):
-                    self.login_page, self.login_form = p, f
-                    break
-            if self.login_form:
-                break
+        self.login_page, self.login_form = find_login(self.login_result, pages)
 
     def page_by_name(self, name: str) -> Optional[Any]:
         name = re.sub(r"\b(page|screen|section|the|my)\b", "", name.lower()).strip()

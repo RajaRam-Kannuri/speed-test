@@ -30,7 +30,9 @@ def test_workflow_a_website(api, sample_app):
     disc = api.get(f"/api/discoveries/{r.json()['id']}").json()
     assert disc["status"] == "completed", disc
     assert disc["login_result"]["success"] is True
-    assert {p["title"].split(" |")[0] for p in disc["pages"]} >= {"Dashboard", "Customers", "New customer", "Sign in"}
+    assert {p["title"].split(" |")[0] for p in disc["pages"]} >= {"Dashboard", "Customers", "New customer"}
+    # The sign-in page redirects once signed in, so it is not crawled; the form is recorded at sign-in.
+    assert disc["login_result"]["form"]["has_password"] is True
     assert any("logout" in s["url"] for s in disc["skipped"])  # destructive links are not crawled
     assert next(p for p in disc["pages"] if p["url"].endswith("/customers"))["requires_login"] is True
 
@@ -237,3 +239,29 @@ def test_pages_that_show_login_in_place_get_login_steps(api, sample_app):
     ex = _wait_execution(api, api.post(f"/api/projects/{project['id']}/executions",
                                        json={"test_case_ids": [c["id"] for c in cases]}).json())
     assert ex["status"] == "passed", [(r["test_title"], r["error_message"]) for r in ex["results"] if r["status"] != "passed"]
+
+
+def test_login_steps_use_the_real_sign_in_form(api, sample_app):
+    """The sign-in page redirects away once signed in, and a change-password form (several password
+    fields) is found first. Login steps must still come from the real sign-in form, and the
+    change-password form must never be submitted with valid data."""
+    project = make_project(api, "Real login form")
+    disc = api.post(f"/api/projects/{project['id']}/discoveries", json={
+        "url": sample_app + "/", "authorized": True, "login_url": "/login", "username": "demo@acme.test",
+        "password": "Passw0rd!", "max_pages": 15}).json()
+    disc = api.get(f"/api/discoveries/{disc['id']}").json()
+    assert disc["login_result"]["success"] is True
+    assert any(p["url"].endswith("/account/password") for p in disc["pages"])
+    job = api.get(f"/api/generation-jobs/{api.post(f'/api/discoveries/{disc['id']}/generate', json={}).json()['id']}").json()
+    cases = [c for c in api.get(f"/api/projects/{project['id']}/test-cases").json() if c["id"] in job["result"]["test_case_ids"]]
+    by_title = {c["title"]: c for c in cases}
+
+    login = api.get(f"/api/projects/{project['id']}/test-cases/{by_title['Verify login with valid credentials']['id']}").json()["steps"]
+    assert login[0]["value"] == "/login"
+    assert [s["value"] for s in login if s["action"] == "fill"] == ["{{username}}", "{{password}}"]
+    assert not any("New password" in str(s["target"]) for s in login)
+    assert not any(t.startswith("Validate form submission: Change password") for t in by_title)
+
+    ex = _wait_execution(api, api.post(f"/api/projects/{project['id']}/executions",
+                                       json={"test_case_ids": [c["id"] for c in cases], "workers": 2}).json())
+    assert ex["status"] == "passed", [(r["test_title"], r["error_message"][:200]) for r in ex["results"] if r["status"] != "passed"]
