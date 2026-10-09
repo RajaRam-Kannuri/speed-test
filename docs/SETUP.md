@@ -18,7 +18,7 @@ Open http://localhost:3000 and register; the first account owns a new organizati
 | api | 8000 | FastAPI. Interactive API docs at http://localhost:8000/docs |
 | worker | – | Runs discovery, generation and test executions (Chromium, Firefox and WebKit included) |
 | migrate | – | Runs `alembic upgrade head` once, then exits |
-| postgres, redis, minio | internal | Data, queue, artifacts |
+| postgres, redis | internal | Data and queue. Artifacts are kept in the `artifacts` volume (or S3, see below) |
 | sample | 8100 | Acme CRM sample app (`http://sample:8100` from inside the stack) |
 
 **Builds behind a TLS-intercepting proxy:** set `EXTRA_CA_FILE=/path/to/ca.pem` before `docker compose build`. The CA is mounted only while dependencies install and is not stored in any image.
@@ -54,6 +54,8 @@ cd e2e && npm ci && npx playwright test # needs the stack from dev-services.sh; 
 ```
 
 Against the Docker stack: `E2E_SAMPLE_URL=http://sample:8100 npx playwright test`.
+
+**Storing artifacts in S3:** by default screenshots, videos and reports go to the `artifacts` Docker volume. To use AWS S3 or any S3-compatible service, uncomment the `LLX_STORAGE_BACKEND=s3` and `LLX_S3_*` lines in `.env`.
 
 ## Configuration
 

@@ -10,7 +10,7 @@
 | Queue | Redis + Celery | Durable jobs: executions, website discovery, test generation. `acks_late` + atomic row claims make redelivery safe |
 | Worker | Celery + Node.js | Runs the Playwright engine in a per-run work directory with a scrubbed environment and time limits |
 | Engine | Playwright 1.56 (TypeScript), Ajv | `runtime.ts`: step implementations, locator resolution, API requests with schema checks, network guard, failure evidence. `discover.ts`: crawler. `pdf.ts`: report rendering |
-| Artifact storage | S3 / MinIO, or local filesystem | Screenshots, videos, traces, API evidence, DOM snapshots, HTML/PDF reports |
+| Artifact storage | Shared Docker volume (default) or S3 / S3-compatible storage | Screenshots, videos, traces, API evidence, DOM snapshots, HTML/PDF reports |
 | AI provider | Anthropic Claude through `agents/llm.py` | Structured JSON output only. Optional; deterministic agents are always available |
 
 ## Request and job flow

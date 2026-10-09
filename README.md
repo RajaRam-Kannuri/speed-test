@@ -24,7 +24,7 @@ flowchart LR
   R --> W[Celery worker]
   W --> E[Playwright TS engine]
   E -->|network guard| T[Website / API under test]
-  W --> S3[(S3 / MinIO artifacts)]
+  W --> S3[(Artifacts: volume or S3)]
   API --> AI[AI provider: Claude, optional]
 ```
 

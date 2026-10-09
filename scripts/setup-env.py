@@ -4,7 +4,7 @@
 Usage (from the project folder):  python3 scripts/setup-env.py
 - If .env does not exist, it is created from .env.example.
 - If .env exists, blank or placeholder secrets are filled in; values you already set are kept.
-- --force regenerates all four secrets (only do this before the first start: the database
+- --force regenerates all secrets (only do this before the first start: the database
   password and encryption key must not change once data exists).
 Standard library only, so it works on any computer with Python 3.
 """
@@ -16,14 +16,13 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGET = os.path.join(ROOT, ".env")
-PLACEHOLDERS = {"", "change-me", "change-me-too"}
+PLACEHOLDERS = {"", "change-me"}
 
 generators = {
     "LLX_SECRET_KEY": lambda: secrets.token_urlsafe(48),
     # A Fernet key is 32 random bytes, URL-safe base64 encoded.
     "LLX_ENCRYPTION_KEY": lambda: base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),
     "POSTGRES_PASSWORD": lambda: secrets.token_urlsafe(18),
-    "MINIO_ROOT_PASSWORD": lambda: secrets.token_urlsafe(18),
 }
 force = "--force" in sys.argv
 
