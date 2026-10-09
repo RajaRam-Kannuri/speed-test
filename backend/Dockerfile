@@ -25,10 +25,10 @@ RUN cd engine && npm run build
 
 # Python dependencies (testgen provides boundary-value generation)
 COPY backend/requirements.txt backend/requirements.txt
-RUN --mount=type=secret,id=extra_ca,required=false if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca SSL_CERT_FILE=/run/secrets/extra_ca; fi; pip install --no-cache-dir -r backend/requirements.txt
+RUN --mount=type=secret,id=extra_ca,required=false if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca SSL_CERT_FILE=/run/secrets/extra_ca; fi; pip install --no-cache-dir --retries 10 --timeout 60 -r backend/requirements.txt
 COPY pyproject.toml README.md ./
 COPY testgen testgen
-RUN --mount=type=secret,id=extra_ca,required=false if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca SSL_CERT_FILE=/run/secrets/extra_ca; fi; pip install --no-cache-dir .
+RUN --mount=type=secret,id=extra_ca,required=false if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca SSL_CERT_FILE=/run/secrets/extra_ca; fi; pip install --no-cache-dir --retries 10 --timeout 60 .
 
 COPY backend backend
 RUN mkdir -p /data/artifacts /tmp/llx-runs && chown -R pwuser:pwuser /data /tmp/llx-runs /app/engine
