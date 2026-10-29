@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { Alert, Button, Card, CardContent, Field, Input } from "@/components/ui";
+import { Alert, Button, Card, CardContent, Field, Input, PasswordInput } from "@/components/ui";
 import { api } from "@/lib/api";
 
 export default function RegisterPage() {
@@ -35,7 +35,7 @@ export default function RegisterPage() {
           <Field label="Your name" htmlFor="name"><Input id="name" required value={form.name} onChange={set("name")} autoComplete="name" /></Field>
           <Field label="Work email" htmlFor="email"><Input id="email" type="email" required value={form.email} onChange={set("email")} autoComplete="email" /></Field>
           <Field label="Password" htmlFor="password" hint="At least 10 characters, with letters and numbers.">
-            <Input id="password" type="password" required minLength={10} value={form.password} onChange={set("password")} autoComplete="new-password" />
+            <PasswordInput id="password" required minLength={10} value={form.password} onChange={set("password")} autoComplete="new-password" />
           </Field>
           <Field label="Company or team name" htmlFor="org"><Input id="org" required value={form.organization_name} onChange={set("organization_name")} /></Field>
           {error && <Alert variant="error">{error}</Alert>}

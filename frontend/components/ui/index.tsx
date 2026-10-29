@@ -4,7 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Loader2, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, TriangleAlert, X } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +51,58 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   <input ref={ref} className={cn("flex h-9 w-full rounded-md border border-input bg-card px-3 text-sm shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50", className)} {...props} />
 ));
 Input.displayName = "Input";
+
+/** A password field that warns when Caps Lock is on and can show what was typed. */
+export const PasswordInput = React.forwardRef<HTMLInputElement, Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">>(
+  ({ className, onFocus, onBlur, id, ...props }, ref) => {
+    const [visible, setVisible] = React.useState(false);
+    const [focused, setFocused] = React.useState(false);
+    const [capsLock, setCapsLock] = React.useState(false);
+    React.useEffect(() => {
+      // Browsers only report Caps Lock on keyboard and mouse events, so listen on the whole page.
+      const update = (e: KeyboardEvent | MouseEvent) => {
+        if (typeof e.getModifierState === "function") setCapsLock(e.getModifierState("CapsLock"));
+      };
+      for (const t of ["keydown", "keyup", "mousedown"] as const) document.addEventListener(t, update);
+      return () => {
+        for (const t of ["keydown", "keyup", "mousedown"] as const) document.removeEventListener(t, update);
+      };
+    }, []);
+    const warningId = id ? `${id}-capslock` : undefined;
+    const showWarning = focused && capsLock;
+    return (
+      <div className="grid gap-1.5">
+        <div className="relative">
+          <input
+            ref={ref}
+            id={id}
+            type={visible ? "text" : "password"}
+            aria-describedby={showWarning ? warningId : undefined}
+            className={cn("flex h-9 w-full rounded-md border border-input bg-card pl-3 pr-10 text-sm shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50", className)}
+            onFocus={(e) => { setFocused(true); onFocus?.(e); }}
+            onBlur={(e) => { setFocused(false); onBlur?.(e); }}
+            {...props}
+          />
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            aria-pressed={visible}
+            className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4"
+          >
+            {visible ? <EyeOff /> : <Eye />}
+            <span className="sr-only">{visible ? "Hide password" : "Show password"}</span>
+          </button>
+        </div>
+        {showWarning && (
+          <p id={warningId} role="status" className="flex items-center gap-1.5 text-xs font-medium text-[#7a5200] [&_svg]:size-3.5">
+            <TriangleAlert /> Caps Lock is on
+          </p>
+        )}
+      </div>
+    );
+  },
+);
+PasswordInput.displayName = "PasswordInput";
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(({ className, ...props }, ref) => (
   <textarea ref={ref} className={cn("flex min-h-[80px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)} {...props} />

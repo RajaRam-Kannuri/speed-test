@@ -13,7 +13,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..deps import CSRF_COOKIE, SESSION_COOKIE, Principal, client_ip, get_principal, require_user
 from ..models import Membership, Organization, User, UserSession
-from ..security.passwords import hash_password, new_token, token_hash, verify_password
+from ..security.passwords import hash_password, new_token, password_problem, token_hash, verify_password
 from ..services import audit, ratelimit
 from .serializers import user_out
 
@@ -57,8 +57,9 @@ def start_session(db: Session, user: User, request: Request, response: Response)
 
 
 def _password_ok(password: str) -> None:
-    if len(password) < 10 or not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
-        raise HTTPException(422, "Use at least 10 characters, including letters and numbers.")
+    problem = password_problem(password)
+    if problem:
+        raise HTTPException(422, problem)
 
 
 @router.post("/auth/register", status_code=201)

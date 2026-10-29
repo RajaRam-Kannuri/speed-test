@@ -162,3 +162,34 @@ def test_runs_blocked_for_invalid_tests(api):
     r = api.post(f"/api/projects/{project['id']}/executions", json={"test_case_ids": [case["id"]]})
     assert r.status_code == 422
     assert "validation errors" in str(r.json()["detail"])
+
+
+def test_admin_password_reset_command(client, capsys):
+    from sqlalchemy import select
+
+    from app.manage import main
+    from app.models import AuditLog
+
+    api, org_id, email = register(client)
+    assert main(["reset-password", email.upper(), "--generate"]) == 0
+    out = capsys.readouterr().out
+    new_password = out.split("New password: ")[1].split()[0]
+    assert "Signed out of 1 session(s)" in out
+    assert api.get("/api/auth/me").status_code == 401  # existing sessions are ended
+    assert client.post("/api/auth/login", json={"email": email, "password": "Sup3rSecret!42"}).status_code == 401
+    assert client.post("/api/auth/login", json={"email": email, "password": new_password}).status_code == 200
+    with SessionLocal() as db:
+        entry = db.scalar(select(AuditLog).where(AuditLog.action == "user.password_reset", AuditLog.organization_id == org_id))
+        assert entry is not None and new_password not in str(entry.details)
+    assert main(["reset-password", "nobody@example.com", "--generate"]) == 1
+    assert "No account uses" in capsys.readouterr().err
+
+
+def test_admin_password_reset_rejects_weak_password(client):
+    import pytest
+
+    from app.manage import reset_password
+
+    _, _, email = register(client)
+    with pytest.raises(ValueError, match="at least 10 characters"):
+        reset_password(email, "short")

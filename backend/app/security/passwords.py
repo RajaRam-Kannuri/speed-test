@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import re
 import secrets
 
 _N, _R, _P = 2**14, 8, 1
@@ -35,3 +36,13 @@ def new_token(prefix: str = "") -> str:
 
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+PASSWORD_RULE = "Use at least 10 characters, including letters and numbers."
+
+
+def password_problem(password: str) -> str | None:
+    """Return why a new password is not acceptable, or None if it is."""
+    if len(password) < 10 or not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        return PASSWORD_RULE
+    return None

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { Alert, Button, Card, CardContent, Field, Input } from "@/components/ui";
+import { Alert, Button, Card, CardContent, Field, Input, PasswordInput } from "@/components/ui";
 import { api } from "@/lib/api";
 
 function LoginForm() {
@@ -36,9 +36,12 @@ function LoginForm() {
           <Field label="Email" htmlFor="email">
             <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </Field>
-          <Field label="Password" htmlFor="password">
-            <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-          </Field>
+          <div className="grid gap-1.5">
+            <Field label="Password" htmlFor="password">
+              <PasswordInput id="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+            <Link href="/forgot-password" className="justify-self-end text-xs font-medium text-primary hover:underline">Forgot password?</Link>
+          </div>
           {error && <Alert variant="error">{error}</Alert>}
           <Button type="submit" loading={busy} className="w-full">Sign in</Button>
         </form>

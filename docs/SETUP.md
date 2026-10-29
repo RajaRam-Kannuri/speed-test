@@ -57,6 +57,19 @@ Against the Docker stack: `E2E_SAMPLE_URL=http://sample:8100 npx playwright test
 
 **Storing artifacts in S3:** by default screenshots, videos and reports go to the `artifacts` Docker volume. To use AWS S3 or any S3-compatible service, uncomment the `LLX_STORAGE_BACKEND=s3` and `LLX_S3_*` lines in `.env`.
 
+## Resetting a forgotten password
+
+The platform does not send email, so an administrator resets passwords from the server:
+
+```bash
+docker compose exec api python -m app.manage reset-password you@example.com             # type the new password twice
+docker compose exec api python -m app.manage reset-password you@example.com --generate  # print a random one
+```
+
+The new password follows the registration rule (at least 10 characters, letters and numbers). Every session
+for the account is signed out, and the reset is recorded in the audit log. Outside Docker, run
+`python -m app.manage reset-password ...` from `backend/`.
+
 ## Configuration
 
 All settings are environment variables with the `LLX_` prefix (`backend/app/config.py`).
