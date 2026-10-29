@@ -25,6 +25,18 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 24 * 7
     cookie_secure: bool = False
     cors_origins: str = "http://localhost:3000"
+    # Address people use to open the app; links in emails point here.
+    public_url: str = ""
+
+    # Outgoing email (password resets, invitations). Leave smtp_host empty to disable email.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_security: str = "starttls"  # "starttls", "ssl" or "none"
+    mail_from: str = "LorvenLax <no-reply@localhost>"
+    password_reset_minutes: int = 60
+    admin_reset_link_hours: int = 24
 
     # Execution engine
     engine_dir: Path = REPO_ROOT / "engine"
@@ -64,6 +76,16 @@ class Settings(BaseSettings):
     @property
     def allowed_private_host_set(self) -> set[str]:
         return {h.strip().lower() for h in self.allowed_private_hosts.split(",") if h.strip()}
+
+    @property
+    def mail_enabled(self) -> bool:
+        return bool(self.smtp_host.strip())
+
+    @property
+    def app_url(self) -> str:
+        """Base URL for links in emails. Never derived from request headers (host-header poisoning)."""
+        url = self.public_url.strip() or self.cors_origins.split(",")[0].strip() or "http://localhost:3000"
+        return url.rstrip("/")
 
     @property
     def ai_enabled(self) -> bool:

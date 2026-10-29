@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Start/stop the local development stack (API, worker, sample app, frontend) using PID files.
-# Usage: scripts/dev-services.sh start|stop|restart [api|worker|sample|web]
+# Usage: scripts/dev-services.sh start|stop|restart [api|worker|sample|web|mail]
+# "mail" is a local SMTP sink (.dev/mail/*.eml); start the API with LLX_SMTP_HOST=127.0.0.1
+# LLX_SMTP_PORT=2525 LLX_SMTP_SECURITY=none to use it.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN="$ROOT/.dev"; mkdir -p "$RUN"
@@ -33,6 +35,7 @@ start_svc() {
     worker) start_one worker "$ROOT/backend" celery -A app.worker.celery_app worker -l info -c 2 -Q lorvenlax ;;
     sample) start_one sample "$ROOT/sample-app" python3 -m uvicorn app:app --host 0.0.0.0 --port 8100 ;;
     web) start_one web "$ROOT/frontend" npm run start -- -p 3000 ;;
+    mail) start_one mail "$ROOT" python3 scripts/smtp-sink.py --port 2525 --dir "$RUN/mail" ;;
   esac
 }
 

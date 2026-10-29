@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -23,7 +23,8 @@ from ..models import (
     User,
 )
 from ..security.passwords import new_token, token_hash
-from ..services import audit
+from ..config import get_settings
+from ..services import audit, mail, password_reset
 from .auth import unique_slug
 from .serializers import iso
 
@@ -89,7 +90,8 @@ def members(org_id: uuid.UUID, principal: Principal = Depends(get_principal), db
 
 
 @router.post("/organizations/{org_id}/invitations", status_code=201)
-def invite(org_id: uuid.UUID, body: InviteIn, request: Request, principal: Principal = Depends(require_user), db: Session = Depends(get_db)):
+def invite(org_id: uuid.UUID, body: InviteIn, request: Request, background: BackgroundTasks,
+           principal: Principal = Depends(require_user), db: Session = Depends(get_db)):
     role = require_org_role(db, principal, org_id, "admin")
     if ROLE_RANK[body.role] > ROLE_RANK[role]:
         raise HTTPException(403, "You cannot invite someone with a higher role than your own")
@@ -100,8 +102,14 @@ def invite(org_id: uuid.UUID, body: InviteIn, request: Request, principal: Princ
     audit.record(db, "member.invited", organization_id=org_id, user_id=principal.user_id, resource_type="invitation",
                  details={"email": inv.email, "role": inv.role}, ip_address=client_ip(request))
     db.commit()
-    # No email service is configured: return the acceptance token so an admin can share the link.
-    return {"id": str(inv.id), "email": inv.email, "role": inv.role, "accept_token": raw, "accept_path": f"/invite/{raw}"}
+    emailed = mail.enabled()
+    if emailed:
+        org = db.get(Organization, org_id)
+        url = f"{get_settings().app_url}/invite/{raw}"
+        background.add_task(mail.send, inv.email, *mail.invitation(org.name, principal.user.name, inv.role, url))
+    # The link is also returned so an admin can share it directly (e.g. when email is not set up).
+    return {"id": str(inv.id), "email": inv.email, "role": inv.role, "accept_token": raw, "accept_path": f"/invite/{raw}",
+            "emailed": emailed}
 
 
 @router.post("/invitations/{token}/accept")
@@ -137,6 +145,38 @@ def change_role(org_id: uuid.UUID, membership_id: uuid.UUID, body: RoleIn, reque
                  resource_id=m.id, details={"from": old, "to": body.role}, ip_address=client_ip(request))
     db.commit()
     return {"id": str(m.id), "role": m.role}
+
+
+@router.post("/organizations/{org_id}/members/{membership_id}/password-reset", status_code=201)
+def admin_password_reset(org_id: uuid.UUID, membership_id: uuid.UUID, request: Request, background: BackgroundTasks,
+                         principal: Principal = Depends(require_user), db: Session = Depends(get_db)):
+    """Let an owner or admin send a member a link to set a new password."""
+    role = require_org_role(db, principal, org_id, "admin")
+    m = db.get(Membership, membership_id)
+    if m is None or m.organization_id != org_id:
+        raise HTTPException(404, "Member not found")
+    if m.user_id == principal.user_id:
+        raise HTTPException(400, "Change your own password from the Account tab")
+    if role != "owner" and ROLE_RANK[m.role] >= ROLE_RANK[role]:
+        raise HTTPException(403, "Only an owner can reset the password of an admin or owner")
+    # An admin of one workspace must not be able to take over an account that also belongs to another.
+    other = db.scalar(select(func.count(Membership.id)).where(Membership.user_id == m.user_id, Membership.organization_id != org_id))
+    if other:
+        raise HTTPException(409, "This person also belongs to other workspaces, so they need to use \"Forgot password?\" on the sign-in page")
+    user = db.get(User, m.user_id)
+    settings = get_settings()
+    raw = password_reset.issue(db, user, "admin", timedelta(hours=settings.admin_reset_link_hours),
+                               created_by=principal.user_id, ip_address=client_ip(request))
+    audit.record(db, "member.password_reset_link_created", organization_id=org_id, user_id=principal.user_id,
+                 resource_type="user", resource_id=user.id, details={"email": user.email}, ip_address=client_ip(request))
+    db.commit()
+    url = password_reset.reset_url(raw)
+    if mail.enabled():
+        background.add_task(mail.send, user.email,
+                            *mail.admin_password_reset(user.name, principal.user.name, url, settings.admin_reset_link_hours))
+        return {"emailed": True, "email": user.email, "expires_in_hours": settings.admin_reset_link_hours}
+    return {"emailed": False, "email": user.email, "reset_path": f"/reset-password?token={raw}",
+            "expires_in_hours": settings.admin_reset_link_hours}
 
 
 @router.delete("/organizations/{org_id}/members/{membership_id}", status_code=204)

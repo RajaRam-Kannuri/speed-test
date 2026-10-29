@@ -24,7 +24,15 @@ x-backend: &backend
     LLX_ANTHROPIC_API_KEY: ${LLX_ANTHROPIC_API_KEY:-}
     LLX_AI_MODEL: ${LLX_AI_MODEL:-claude-opus-5-5}
     LLX_ALLOWED_PRIVATE_HOSTS: ${LLX_ALLOWED_PRIVATE_HOSTS:-sample}
-    LLX_CORS_ORIGINS: http://localhost:3000
+    LLX_CORS_ORIGINS: ${LLX_PUBLIC_URL:-http://localhost:3000}
+    LLX_PUBLIC_URL: ${LLX_PUBLIC_URL:-http://localhost:3000}
+    # Email (password resets, invitations). Leave LLX_SMTP_HOST empty to turn email off.
+    LLX_SMTP_HOST: ${LLX_SMTP_HOST:-}
+    LLX_SMTP_PORT: ${LLX_SMTP_PORT:-587}
+    LLX_SMTP_USERNAME: ${LLX_SMTP_USERNAME:-}
+    LLX_SMTP_PASSWORD: ${LLX_SMTP_PASSWORD:-}
+    LLX_SMTP_SECURITY: ${LLX_SMTP_SECURITY:-starttls}
+    LLX_MAIL_FROM: ${LLX_MAIL_FROM:-LorvenLax <no-reply@localhost>}
   depends_on:
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }
@@ -90,6 +98,15 @@ services:
     build: { context: ./sample-app, secrets: [extra_ca] }
     image: lorvenlax-sample:latest
     ports: ["8100:8100"]
+    restart: unless-stopped
+
+  # Optional local inbox for trying out email without a mail provider:
+  #   docker compose --profile mail up -d    then open http://localhost:8025
+  # with LLX_SMTP_HOST=mailpit, LLX_SMTP_PORT=1025, LLX_SMTP_SECURITY=none in .env
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: [mail]
+    ports: ["8025:8025"]
     restart: unless-stopped
 
 # Optional CA bundle for builds behind a TLS-intercepting proxy (used only during dependency installs).

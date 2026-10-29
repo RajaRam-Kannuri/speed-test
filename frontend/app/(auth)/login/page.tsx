@@ -8,7 +8,9 @@ import { api } from "@/lib/api";
 
 function LoginForm() {
   const router = useRouter();
-  const next = useSearchParams().get("next") || "/";
+  const params = useSearchParams();
+  const next = params.get("next") || "/";
+  const justReset = params.get("reset") === "1";
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -32,6 +34,7 @@ function LoginForm() {
       <CardContent className="pt-6">
         <h1 className="mb-1 text-lg font-semibold">Sign in</h1>
         <p className="mb-5 text-sm text-muted-foreground">Welcome back. Pick up where your tests left off.</p>
+        {justReset && <Alert variant="success" className="mb-4">Your password has been updated. Sign in with your new password.</Alert>}
         <form onSubmit={submit} className="grid gap-4">
           <Field label="Email" htmlFor="email">
             <Input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />

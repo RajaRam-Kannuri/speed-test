@@ -1,10 +1,11 @@
 "use client";
 
-import { Copy, Lock, Plus, Trash2 } from "lucide-react";
+import { Copy, KeyRound, Lock, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
 import useSWR from "swr";
 import { useCapabilities } from "@/components/run-controls";
-import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, Field, Input, PageHeader, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from "@/components/ui";
+import { NewPasswordFields, passwordChecks } from "@/components/new-password";
+import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, Dialog, DialogContent, Field, Input, PageHeader, PasswordInput, Select, Spinner, Tabs, TabsContent, TabsList, TabsTrigger, Textarea } from "@/components/ui";
 import { useWorkspace } from "@/components/workspace";
 import { api, fetcher } from "@/lib/api";
 import type { Environment } from "@/lib/types";
@@ -120,22 +121,23 @@ function Environments() {
   );
 }
 
-interface Members { members: { id: string; name: string; email: string; role: string }[]; invitations: { id: string; email: string; role: string; expires_at: string }[] }
+interface Members { members: { id: string; user_id: string; name: string; email: string; role: string }[]; invitations: { id: string; email: string; role: string; expires_at: string }[] }
 
 function Team() {
   const { orgId, role, me } = useWorkspace();
   const { data, mutate } = useSWR<Members>(`/organizations/${orgId}/members`, fetcher);
   const [email, setEmail] = React.useState("");
   const [newRole, setNewRole] = React.useState("member");
-  const [link, setLink] = React.useState<string | null>(null);
+  const [link, setLink] = React.useState<{ url: string; emailed: boolean; email: string } | null>(null);
+  const [resetFor, setResetFor] = React.useState<Members["members"][number] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const isAdmin = role === "owner" || role === "admin";
   async function invite(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     try {
-      const res = await api<{ accept_path: string }>(`/organizations/${orgId}/invitations`, { json: { email, role: newRole } });
-      setLink(`${window.location.origin}${res.accept_path}`);
+      const res = await api<{ accept_path: string; emailed: boolean; email: string }>(`/organizations/${orgId}/invitations`, { json: { email, role: newRole } });
+      setLink({ url: `${window.location.origin}${res.accept_path}`, emailed: res.emailed, email: res.email });
       setEmail("");
       mutate();
     } catch (err) { setError((err as Error).message); }
@@ -159,6 +161,13 @@ function Team() {
                     <Select aria-label={`Role for ${m.email}`} value={m.role} onChange={(e) => changeRole(m.id, e.target.value)}>{["owner", "admin", "member", "viewer"].map((r) => <option key={r}>{r}</option>)}</Select>
                   ) : <Badge variant="outline">{m.role}</Badge>}
                 </td>
+                {isAdmin && (
+                  <td className="w-10 py-2 pl-2 text-right">
+                    {m.email !== me.email && (role === "owner" || !["owner", "admin"].includes(m.role)) && (
+                      <Button variant="ghost" size="icon" aria-label={`Reset password for ${m.email}`} title="Reset password" onClick={() => setResetFor(m)}><KeyRound /></Button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
             {data.invitations.map((i) => (
@@ -173,8 +182,123 @@ function Team() {
             <Button type="submit">Create invitation</Button>
           </form>
         )}
-        {link && <Alert variant="success" title="Invitation link created">Email delivery is not configured, so share this link with the person: <span className="break-all font-mono text-xs">{link}</span></Alert>}
+        {link && (link.emailed
+          ? <Alert variant="success" title="Invitation sent">We emailed an invitation to {link.email}. It expires in 7 days.</Alert>
+          : <Alert variant="success" title="Invitation link created">Share this link with {link.email}. It expires in 7 days. <CopyField value={link.url} label="Invitation link" /></Alert>)}
         {error && <Alert variant="error">{error}</Alert>}
+      </CardContent>
+      <ResetMemberDialog orgId={orgId} member={resetFor} onClose={() => setResetFor(null)} />
+    </Card>
+  );
+}
+
+function CopyField({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <Input readOnly aria-label={label} value={value} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+      <Button type="button" variant="outline" size="sm" onClick={async () => {
+        try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { setCopied(false); }
+      }}><Copy />{copied ? "Copied" : "Copy"}</Button>
+    </div>
+  );
+}
+
+interface ResetResult { emailed: boolean; email: string; reset_path?: string; expires_in_hours: number }
+
+function ResetMemberDialog({ orgId, member, onClose }: { orgId: string; member: Members["members"][number] | null; onClose: () => void }) {
+  const [result, setResult] = React.useState<ResetResult | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => { setResult(null); setError(null); }, [member]);
+  async function create() {
+    if (!member) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await api<ResetResult>(`/organizations/${orgId}/members/${member.id}/password-reset`, { method: "POST" }));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog open={member !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
+      {member && (
+        <DialogContent title={`Reset password for ${member.name}`} description={member.email}>
+          {!result ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {member.name} gets a link to choose a new password. Their current password keeps working until they use it,
+                and they are then signed out on every device.
+              </p>
+              {error && <Alert variant="error">{error}</Alert>}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={onClose}>Cancel</Button>
+                <Button onClick={create} loading={busy}>Send reset link</Button>
+              </div>
+            </>
+          ) : result.emailed ? (
+            <>
+              <Alert variant="success" title="Reset link sent">We emailed a reset link to {result.email}. It expires in {result.expires_in_hours} hours.</Alert>
+              <div className="flex justify-end"><Button onClick={onClose}>Done</Button></div>
+            </>
+          ) : (
+            <>
+              <Alert variant="success" title="Reset link created">
+                Email isn&apos;t set up, so send this link to {result.email} yourself (for example in chat). It works once and expires in {result.expires_in_hours} hours.
+                <CopyField value={`${window.location.origin}${result.reset_path}`} label="Reset link" />
+              </Alert>
+              <p className="text-xs text-muted-foreground">Anyone with this link can set the password, so share it only with {member.name}.</p>
+              <div className="flex justify-end"><Button onClick={onClose}>Done</Button></div>
+            </>
+          )}
+        </DialogContent>
+      )}
+    </Dialog>
+  );
+}
+
+function Account() {
+  const { me } = useWorkspace();
+  const [current, setCurrent] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [confirm, setConfirm] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+  const [done, setDone] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setDone(false);
+    if (!passwordChecks(password, confirm).every((c) => c.ok)) {
+      setError(password !== confirm ? "The new passwords do not match." : "Use at least 10 characters, including letters and numbers.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/auth/change-password", { json: { current_password: current, new_password: password } });
+      setCurrent(""); setPassword(""); setConfirm(""); setDone(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Card className="max-w-xl">
+      <CardHeader><div><CardTitle>Change password</CardTitle><CardDescription>Signed in as {me.email}. Changing your password signs you out on your other devices.</CardDescription></div></CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid gap-4">
+          <Field label="Current password" htmlFor="current-password">
+            <PasswordInput id="current-password" autoComplete="current-password" required value={current} onChange={(e) => setCurrent(e.target.value)} />
+          </Field>
+          <NewPasswordFields password={password} confirm={confirm} onPassword={setPassword} onConfirm={setConfirm} />
+          {error && <Alert variant="error">{error}</Alert>}
+          {done && <Alert variant="success">Your password has been changed.</Alert>}
+          <div><Button type="submit" loading={busy}>Update password</Button></div>
+        </form>
       </CardContent>
     </Card>
   );
@@ -271,9 +395,10 @@ export default function SettingsPage() {
     <div>
       <PageHeader title="Settings" />
       <Tabs defaultValue="project">
-        <TabsList><TabsTrigger value="project">Project</TabsTrigger><TabsTrigger value="team">Team</TabsTrigger><TabsTrigger value="ci">API &amp; CI/CD</TabsTrigger><TabsTrigger value="audit">Audit log</TabsTrigger><TabsTrigger value="system">AI &amp; system</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="project">Project</TabsTrigger><TabsTrigger value="team">Team</TabsTrigger><TabsTrigger value="account">Account</TabsTrigger><TabsTrigger value="ci">API &amp; CI/CD</TabsTrigger><TabsTrigger value="audit">Audit log</TabsTrigger><TabsTrigger value="system">AI &amp; system</TabsTrigger></TabsList>
         <TabsContent value="project" className="grid gap-6">{project ? <><ProjectSettings key={project.id} /><Environments /></> : <Alert>Create a project first.</Alert>}</TabsContent>
         <TabsContent value="team"><Team /></TabsContent>
+        <TabsContent value="account"><Account /></TabsContent>
         <TabsContent value="ci"><CiTokens /></TabsContent>
         <TabsContent value="audit"><AuditLog /></TabsContent>
         <TabsContent value="system"><System /></TabsContent>

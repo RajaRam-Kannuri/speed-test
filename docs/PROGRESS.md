@@ -45,7 +45,7 @@ OpenAPI 3.x (JSON/YAML), Swagger 2.0 and Postman v2.1 import; import from URL or
 - **Pending:** regression test selection from code changes, GitHub repository integration, Jira import, test optimisation (deduplication and minimisation).
 
 ### Phase 6 – Commercial SaaS: **not started** beyond the basics
-Organization quotas and usage counting exist. Pending: subscription plans and billing (Stripe), an admin console, OpenTelemetry/Prometheus/Grafana, production IaC (AWS), and email delivery for invitations.
+Organization quotas and usage counting exist. Pending: subscription plans and billing (Stripe), an admin console, OpenTelemetry/Prometheus/Grafana, and production IaC (AWS). Email delivery (SMTP) is done: password reset links, invitations and password-change notices; verified against a local SMTP server, not yet against a hosted provider.
 
 ## Known limitations
 
@@ -57,4 +57,4 @@ Organization quotas and usage counting exist. Pending: subscription plans and bi
 - **Discovery** is same-origin, capped at 50 pages and depth 5, and does not execute flows that need data the platform cannot see.
 - **Execution isolation:** each run gets its own process group, work directory, scrubbed environment and time limit, inside a capability-free, non-root container with CPU/memory/PID limits. Network egress is enforced by the in-engine guard. A production deployment should add a network policy as well (see SETUP.md).
 - **Videos and traces** are kept for failed tests only by default (configurable per run via the API); screenshots are always kept.
-- **Invitations** return a link to share; no email is sent.
+- **Email** is optional. With SMTP configured, password resets and invitations are emailed; without it, admins share one-time links from Settings → Team. Delivery was tested against a local SMTP server only; SPF/DKIM for the sending domain is up to the operator.

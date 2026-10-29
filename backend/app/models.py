@@ -100,6 +100,20 @@ class UserSession(TimestampMixin, Base):
     user_agent: Mapped[Optional[str]] = mapped_column(String(300))
 
 
+class PasswordResetToken(TimestampMixin, Base):
+    """Single-use password reset link. Only the SHA-256 of the token is stored."""
+
+    __tablename__ = "password_reset_tokens"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(20), nullable=False)  # "self" (email request) or "admin"
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    expires_at: Mapped[datetime] = mapped_column(Timestamp, nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(Timestamp)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(64))
+
+
 class ApiToken(TimestampMixin, Base):
     """Tokens for CI/CD triggers. Scoped to one organization (optionally one project)."""
 

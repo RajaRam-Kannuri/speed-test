@@ -1,46 +1,98 @@
 "use client";
 
+import { ArrowLeft, MailCheck, ShieldQuestion } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import { Card, CardContent } from "@/components/ui";
+import { Alert, Button, Card, CardContent, Field, Input, Spinner } from "@/components/ui";
+import { api } from "@/lib/api";
 
-const COMMAND = "docker compose exec api python -m app.manage reset-password you@example.com";
+function BackToSignIn() {
+  return (
+    <Link href="/login" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+      <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Back to sign in
+    </Link>
+  );
+}
 
 export default function ForgotPasswordPage() {
-  const [copied, setCopied] = React.useState(false);
+  const [emailEnabled, setEmailEnabled] = React.useState<boolean | null>(null);
+  const [email, setEmail] = React.useState("");
+  const [sentTo, setSentTo] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
 
-  async function copy() {
+  React.useEffect(() => {
+    api<{ email_enabled: boolean }>("/auth/password-reset/options")
+      .then((r) => setEmailEnabled(r.email_enabled))
+      .catch(() => setEmailEnabled(false));
+  }, []);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
     try {
-      await navigator.clipboard.writeText(COMMAND);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
+      await api("/auth/password-reset/request", { json: { email } });
+      setSentTo(email);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
+  }
+
+  if (emailEnabled === null) {
+    return <Card><CardContent className="flex justify-center py-12"><Spinner /></CardContent></Card>;
+  }
+
+  if (!emailEnabled) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-accent text-primary"><ShieldQuestion className="h-5 w-5" aria-hidden /></span>
+          <h1 className="mb-1 text-lg font-semibold">Forgot your password?</h1>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Ask an owner or admin of your workspace to send you a reset link. They can do this from <strong className="font-medium text-foreground">Settings → Team</strong>.
+          </p>
+          <p className="mb-6 text-sm text-muted-foreground">The link lets you choose a new password and works once.</p>
+          <BackToSignIn />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (sentTo) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-accent text-primary"><MailCheck className="h-5 w-5" aria-hidden /></span>
+          <h1 className="mb-1 text-lg font-semibold">Check your email</h1>
+          <p className="mb-4 text-sm text-muted-foreground">
+            If an account exists for <strong className="font-medium text-foreground">{sentTo}</strong>, we have sent a link to reset its password. The link expires in 60 minutes.
+          </p>
+          <p className="mb-6 text-sm text-muted-foreground">
+            Didn&apos;t get it? Check your spam folder, or{" "}
+            <button type="button" className="font-medium text-primary hover:underline" onClick={() => setSentTo(null)}>try a different email</button>.
+          </p>
+          <BackToSignIn />
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
     <Card>
       <CardContent className="pt-6">
-        <h1 className="mb-1 text-lg font-semibold">Reset your password</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          This installation does not send email, so passwords are reset by whoever runs the server. Ask your
-          administrator, or if that is you, run this in the folder that holds <code>docker-compose.yml</code>:
-        </p>
-        <div className="relative mb-3 rounded-md border bg-muted px-3 py-2.5 pr-16 font-mono text-xs leading-5 break-words">
-          {COMMAND}
-          <button type="button" onClick={copy} className="absolute right-2 top-2 rounded px-1.5 py-0.5 text-xs font-medium text-primary hover:underline">
-            {copied ? "Copied" : "Copy"}
-          </button>
-        </div>
-        <ul className="mb-5 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li>Replace the email with the one you sign in with.</li>
-          <li>You will be asked to type the new password twice. Add <code>--generate</code> to get a random one instead.</li>
-          <li>Every device signed in to the account is signed out.</li>
-        </ul>
-        <p className="text-center text-sm text-muted-foreground">
-          <Link href="/login" className="font-medium text-primary hover:underline">Back to sign in</Link>
-        </p>
+        <h1 className="mb-1 text-lg font-semibold">Forgot your password?</h1>
+        <p className="mb-5 text-sm text-muted-foreground">Enter the email you sign in with and we&apos;ll send you a link to reset your password.</p>
+        <form onSubmit={submit} className="grid gap-4">
+          <Field label="Email" htmlFor="email">
+            <Input id="email" type="email" autoComplete="username" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          {error && <Alert variant="error">{error}</Alert>}
+          <Button type="submit" loading={busy} className="w-full">Send reset link</Button>
+        </form>
+        <div className="mt-5 text-center"><BackToSignIn /></div>
       </CardContent>
     </Card>
   );

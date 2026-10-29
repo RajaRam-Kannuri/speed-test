@@ -57,18 +57,46 @@ Against the Docker stack: `E2E_SAMPLE_URL=http://sample:8100 npx playwright test
 
 **Storing artifacts in S3:** by default screenshots, videos and reports go to the `artifacts` Docker volume. To use AWS S3 or any S3-compatible service, uncomment the `LLX_STORAGE_BACKEND=s3` and `LLX_S3_*` lines in `.env`.
 
-## Resetting a forgotten password
+## Email and password resets
 
-The platform does not send email, so an administrator resets passwords from the server:
+With email set up, people reset their own password from **Forgot password?** on the sign-in page. They get a
+link that works once and expires after 60 minutes (`LLX_PASSWORD_RESET_MINUTES`). Invitations are emailed too.
+After any password change the user is signed out on every device, gets a "your password was changed" email, and
+the change is written to the audit log.
+
+Add these to `.env`, then run `docker compose up -d`:
+
+```bash
+LLX_PUBLIC_URL=https://testing.yourcompany.com     # where people open LorvenLax; email links point here
+LLX_SMTP_HOST=smtp.sendgrid.net
+LLX_SMTP_PORT=587
+LLX_SMTP_SECURITY=starttls                          # starttls (port 587), ssl (port 465) or none
+LLX_SMTP_USERNAME=apikey
+LLX_SMTP_PASSWORD=...
+LLX_MAIL_FROM=LorvenLax <no-reply@yourcompany.com>
+```
+
+Check the settings with `docker compose exec api python -m app.manage send-test-email you@yourcompany.com`.
+For Gmail, use `smtp.gmail.com` with an [App Password](https://support.google.com/accounts/answer/185833), not
+your normal password. For production, use a provider such as Amazon SES, SendGrid, Postmark or Mailgun, and set up
+SPF and DKIM for the sending domain so messages are not marked as spam.
+
+**Trying it out without a mail provider:** set `LLX_SMTP_HOST=mailpit`, `LLX_SMTP_PORT=1025` and
+`LLX_SMTP_SECURITY=none`, run `docker compose --profile mail up -d`, and open http://localhost:8025 to see
+every email the platform sends.
+
+**Without email:** an owner or admin opens **Settings → Team**, clicks the key icon next to a member, and shares
+the one-time link it creates (valid for 24 hours, `LLX_ADMIN_RESET_LINK_HOURS`). Admins can reset members and
+viewers; owners can reset anyone. A person who also belongs to another workspace must use **Forgot password?**,
+so that an admin of one workspace cannot take over an account used elsewhere. Signed-in users change their own
+password under **Settings → Account**.
+
+**Last resort** (for example, the only owner is locked out and email is not set up), run on the server:
 
 ```bash
 docker compose exec api python -m app.manage reset-password you@example.com             # type the new password twice
 docker compose exec api python -m app.manage reset-password you@example.com --generate  # print a random one
 ```
-
-The new password follows the registration rule (at least 10 characters, letters and numbers). Every session
-for the account is signed out, and the reset is recorded in the audit log. Outside Docker, run
-`python -m app.manage reset-password ...` from `backend/`.
 
 ## Configuration
 

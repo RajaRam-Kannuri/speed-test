@@ -8,7 +8,7 @@ async function typeKey(page: Page, capsLock: boolean) {
   }, capsLock);
 }
 
-test("sign-in page warns about Caps Lock, can show the password, and explains password reset", async ({ page }) => {
+test("sign-in page warns about Caps Lock, can show the password, and links to password reset", async ({ page }) => {
   await page.goto("/login");
   const password = page.locator("#password");
   await password.click();
@@ -32,6 +32,6 @@ test("sign-in page warns about Caps Lock, can show the password, and explains pa
   await expect(password).toHaveAttribute("type", "password");
 
   await page.getByRole("link", { name: "Forgot password?" }).click();
-  await expect(page.getByRole("heading", { name: "Reset your password" })).toBeVisible();
-  await expect(page.getByText("python -m app.manage reset-password")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Forgot your password?" })).toBeVisible();
+  await expect(page.getByText("docker compose")).toHaveCount(0); // no server commands for end users
 });

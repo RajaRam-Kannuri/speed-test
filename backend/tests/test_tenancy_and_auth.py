@@ -179,8 +179,8 @@ def test_admin_password_reset_command(client, capsys):
     assert client.post("/api/auth/login", json={"email": email, "password": "Sup3rSecret!42"}).status_code == 401
     assert client.post("/api/auth/login", json={"email": email, "password": new_password}).status_code == 200
     with SessionLocal() as db:
-        entry = db.scalar(select(AuditLog).where(AuditLog.action == "user.password_reset", AuditLog.organization_id == org_id))
-        assert entry is not None and new_password not in str(entry.details)
+        entry = db.scalar(select(AuditLog).where(AuditLog.action == "user.password_changed", AuditLog.organization_id == org_id))
+        assert entry is not None and entry.details["via"] == "admin_command" and new_password not in str(entry.details)
     assert main(["reset-password", "nobody@example.com", "--generate"]) == 1
     assert "No account uses" in capsys.readouterr().err
 
